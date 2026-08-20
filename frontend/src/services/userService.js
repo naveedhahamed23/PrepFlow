@@ -2,7 +2,7 @@ import api, { mockResponse } from "./api";
 import { mockUser } from "../data/user";
 import { notifications } from "../data/notifications";
 
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 const userService = {
   /** GET /api/users/me */

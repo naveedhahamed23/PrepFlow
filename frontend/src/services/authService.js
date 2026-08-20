@@ -1,7 +1,7 @@
 import api, { mockResponse } from "./api";
 import { mockUser } from "../data/user";
 
-const USE_MOCK = true; // flip to false once Spring Boot /api/auth/** is live
+const USE_MOCK = false; // flip to false once Spring Boot /api/auth/** is live
 
 const authService = {
   /**

@@ -1,7 +1,7 @@
 import api, { mockResponse } from "./api";
 import { todayTasks, upcomingTasks, weeklyPlanner, monthlyGoals } from "../data/planner";
 
-const USE_MOCK = true;
+const USE_MOCK = false;
 
 const plannerService = {
   /** GET /api/planner/today */
