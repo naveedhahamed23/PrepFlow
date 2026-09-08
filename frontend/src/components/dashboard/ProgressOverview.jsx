@@ -1,18 +1,17 @@
 import { motion } from "framer-motion";
-import { Trophy, Flame, Clock, Target } from "lucide-react";
+import { Flame, Clock, Target, Mic } from "lucide-react";
 import Card from "../ui/Card";
 
-export default function ProgressOverview({ user }) {
-  const xpToNextLevel = 10000;
-  const pct = Math.min(100, Math.round((user.xp / xpToNextLevel) * 100));
+export default function ProgressOverview({ data }) {
+  const pct = data.overallProgress;
   const circumference = 2 * Math.PI * 42;
-  const offset = circumference - (pct / 100) * circumference;
+  const offset = pct == null ? circumference : circumference - (pct / 100) * circumference;
 
   const stats = [
-    { icon: Trophy, label: "Rank", value: `#${user.rank}` },
-    { icon: Flame, label: "Streak", value: `${user.streak} days` },
-    { icon: Clock, label: "Hours Studied", value: user.hoursStudied },
-    { icon: Target, label: "Revision Due", value: user.revisionDue },
+    { icon: Flame, label: "Streak", value: `${data.studyStreak} days` },
+    { icon: Clock, label: "Study time", value: `${data.studyMinutes} min` },
+    { icon: Mic, label: "Interviews", value: data.interviewCount },
+    { icon: Target, label: "Aptitude", value: data.aptitudeAverage == null ? "No data" : `${Math.round(data.aptitudeAverage)}%` },
   ];
 
   return (
@@ -37,8 +36,8 @@ export default function ProgressOverview({ user }) {
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-lg font-bold text-text">Lv.{user.level}</span>
-            <span className="text-[10px] text-text-muted">{user.xp} XP</span>
+            <span className="text-lg font-bold text-text">{pct == null ? "No data" : `${pct}%`}</span>
+            <span className="text-[10px] text-text-muted">Overall progress</span>
           </div>
         </div>
 

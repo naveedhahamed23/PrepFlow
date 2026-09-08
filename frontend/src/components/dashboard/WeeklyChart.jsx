@@ -13,7 +13,7 @@ function CustomTooltip({ active, payload, label }) {
 
 export default function WeeklyChart({ data }) {
   return (
-    <ChartCard title="Weekly Coding Activity" subtitle="Problems solved per day">
+    <ChartCard title="Preparation Activity" subtitle="Recorded activity per day">
       <ResponsiveContainer width="100%" height={220}>
         <AreaChart data={data} margin={{ top: 6, right: 6, left: -20, bottom: 0 }}>
           <defs>
@@ -23,10 +23,10 @@ export default function WeeklyChart({ data }) {
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#27272A" vertical={false} />
-          <XAxis dataKey="day" stroke="#A1A1AA" fontSize={12} tickLine={false} axisLine={false} />
+          <XAxis dataKey="label" stroke="#A1A1AA" fontSize={12} tickLine={false} axisLine={false} />
           <YAxis stroke="#A1A1AA" fontSize={12} tickLine={false} axisLine={false} />
           <Tooltip content={<CustomTooltip />} />
-          <Area type="monotone" dataKey="solved" stroke="#3B82F6" strokeWidth={2.5} fill="url(#colorSolved)" />
+          <Area type="monotone" dataKey="value" stroke="#3B82F6" strokeWidth={2.5} fill="url(#colorSolved)" />
         </AreaChart>
       </ResponsiveContainer>
     </ChartCard>

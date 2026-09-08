@@ -1,31 +1,23 @@
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Code2, Mic, FileText, Trophy, Plus, Play, FileEdit, Users } from "lucide-react";
+import { CheckCircle2, Plus, Play, FileEdit, Users } from "lucide-react";
 import Card from "../ui/Card";
 import Badge from "../ui/Badge";
 import { formatDate } from "../../utils/format";
 
-const activityItems = [
-  { icon: CheckCircle2, text: "Solved 'Merge Intervals'", time: "2h ago", color: "text-success" },
-  { icon: Mic, text: "Completed Technical mock interview — scored 82%", time: "5h ago", color: "text-primary" },
-  { icon: Trophy, text: "Moved up to rank #27 on the leaderboard", time: "1d ago", color: "text-warning" },
-  { icon: Code2, text: "Solved 'LRU Cache'", time: "1d ago", color: "text-success" },
-  { icon: FileText, text: "Updated resume — ATS score improved to 78", time: "3d ago", color: "text-primary" },
-];
-
-export function ActivityTimeline() {
+export function ActivityTimeline({ items }) {
   return (
     <Card>
       <h3 className="mb-4 text-sm font-semibold text-text">Activity Timeline</h3>
       <div className="space-y-5">
-        {activityItems.map((item, i) => (
+        {items.length === 0 ? <p className="text-sm text-text-muted">No activity recorded yet.</p> : items.map((item, i) => (
           <div key={i} className="relative flex gap-3 pl-1">
-            {i !== activityItems.length - 1 && (
+            {i !== items.length - 1 && (
               <span className="absolute left-[13px] top-6 h-full w-px bg-bg-border" />
             )}
-            <item.icon size={18} className={`shrink-0 ${item.color}`} />
+            <CheckCircle2 size={18} className="shrink-0 text-primary" />
             <div className="min-w-0 pb-1">
-              <p className="text-sm text-text">{item.text}</p>
-              <p className="mt-0.5 text-xs text-text-muted">{item.time}</p>
+              <p className="text-sm text-text">{item.type.replaceAll("_", " ")}</p>
+              <p className="mt-0.5 text-xs text-text-muted">{formatDate(item.createdAt)}</p>
             </div>
           </div>
         ))}
@@ -39,13 +31,13 @@ export function UpcomingSchedule({ items }) {
     <Card>
       <h3 className="mb-4 text-sm font-semibold text-text">Upcoming Schedule</h3>
       <div className="space-y-3">
-        {items.map((item) => (
+        {items.length === 0 ? <p className="text-sm text-text-muted">No upcoming tasks.</p> : items.map((item) => (
           <div key={item.id} className="flex items-center justify-between rounded-xl border border-bg-border/60 px-3.5 py-2.5">
             <div className="min-w-0">
               <p className="truncate text-sm text-text">{item.title}</p>
-              <p className="text-xs text-text-muted">{formatDate(item.date)}</p>
+              <p className="text-xs text-text-muted">{formatDate(item.dueDate)}{item.duration ? ` · ${item.duration} min` : ""}</p>
             </div>
-            <Badge variant="primary" className="shrink-0">{item.category}</Badge>
+            <Badge variant="primary" className="shrink-0">{item.subject || "Study"}</Badge>
           </div>
         ))}
       </div>

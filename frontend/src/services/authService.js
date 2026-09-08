@@ -33,7 +33,8 @@ const authService = {
         user: { ...mockUser, name: payload.name, email: payload.email },
       });
     }
-    return api.post("/auth/register", payload);
+    const { name, email, password } = payload;
+    return api.post("/auth/register", { name, email, password });
   },
 
   /** POST /api/auth/forgot-password */

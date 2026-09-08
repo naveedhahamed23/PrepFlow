@@ -1,48 +1,66 @@
-import { Code2, Clock, Flame, Award } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { Code2, Clock, Flame, Award, Mic, Target } from "lucide-react";
 import WelcomeCard from "../components/dashboard/WelcomeCard";
 import StatCard from "../components/dashboard/StatCard";
 import ProgressOverview from "../components/dashboard/ProgressOverview";
 import WeeklyChart from "../components/dashboard/WeeklyChart";
 import TodayTasks from "../components/dashboard/TodayTasks";
+import DashboardInsights from "../components/dashboard/DashboardInsights";
 import { ActivityTimeline, UpcomingSchedule, QuickActions } from "../components/dashboard/DashboardWidgets";
 import { SkeletonCard } from "../components/ui/Skeleton";
 import { useFetch } from "../hooks/useFetch";
 import plannerService from "../services/plannerService";
-import dsaService from "../services/dsaService";
+import dashboardService from "../services/dashboardService";
 
 export default function Dashboard() {
-  const { user } = useAuth();
-  const { data: todayTasks, loading: tasksLoading } = useFetch(() => plannerService.getTodayTasks(), []);
-  const { data: upcoming, loading: upcomingLoading } = useFetch(() => plannerService.getUpcomingTasks(), []);
-  const { data: weekly, loading: weeklyLoading } = useFetch(() => dsaService.getWeeklyActivity(), []);
+  const { data, loading, error, refetch } = useFetch(() => dashboardService.getDashboard(), []);
+
+  const toggleTask = async (task) => {
+    await plannerService.updateTask(task.id, {
+      title: task.title,
+      subject: task.subject,
+      duration: task.duration,
+      dueDate: task.dueDate,
+      done: !task.done,
+    });
+    await refetch();
+  };
+
+  if (loading) return <div className="space-y-6"><SkeletonCard /><SkeletonCard /><SkeletonCard /></div>;
+  if (error) return <div className="rounded-xl border border-danger/30 bg-danger/5 p-6 text-sm text-danger">Unable to load your dashboard. Please try again.</div>;
 
   return (
     <div className="space-y-6">
-      <WelcomeCard user={user} />
+      <WelcomeCard userName={data.userName} streak={data.studyStreak} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard icon={Code2} label="Problems Solved" value={user?.problemsSolved ?? 0} delta="+12 this week" color="primary" />
-        <StatCard icon={Clock} label="Hours Studied" value={user?.hoursStudied ?? 0} delta="+8h this week" color="success" />
-        <StatCard icon={Flame} label="Study Streak" value={`${user?.streak ?? 0} days`} color="warning" />
-        <StatCard icon={Award} label="XP Earned" value={user?.xp?.toLocaleString() ?? 0} delta="+340 today" color="primary" />
+        <StatCard icon={Code2} label="Problems Solved" value={data.dsaProblemsSolved} color="primary" />
+        <StatCard icon={Clock} label="Study Time" value={`${Math.floor(data.studyMinutes / 60)}h ${data.studyMinutes % 60}m`} color="success" />
+        <StatCard icon={Flame} label="Study Streak" value={`${data.studyStreak} days`} color="warning" />
+        <StatCard icon={Award} label="XP Earned" value={data.xp.toLocaleString()} color="primary" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          {weeklyLoading ? <SkeletonCard /> : <WeeklyChart data={weekly || []} />}
+          <WeeklyChart data={data.weeklyActivity} />
         </div>
-        {user && <ProgressOverview user={user} />}
+        <ProgressOverview data={data} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {tasksLoading ? <SkeletonCard /> : <TodayTasks tasks={todayTasks || []} />}
-        <ActivityTimeline />
+        <TodayTasks tasks={data.todaysTasks} onToggle={toggleTask} />
+        <ActivityTimeline items={data.recentActivity} />
         <div className="space-y-4">
-          {upcomingLoading ? <SkeletonCard /> : <UpcomingSchedule items={upcoming || []} />}
+          <UpcomingSchedule items={data.upcomingSchedule} />
           <QuickActions />
         </div>
       </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <StatCard icon={Mic} label="Interviews Completed" value={data.interviewCount} color="danger" />
+        <StatCard icon={Target} label="Aptitude Average" value={data.aptitudeAverage == null ? "No data yet" : `${Math.round(data.aptitudeAverage)}%`} color="success" />
+      </div>
+
+      <DashboardInsights data={data} />
     </div>
   );
 }

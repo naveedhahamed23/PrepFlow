@@ -1,0 +1,11 @@
+package com.prepflow.activity;
+
+public enum ActivityType {
+    DSA_SOLVED,
+    APTITUDE_COMPLETED,
+    STUDY_TASK_COMPLETED,
+    MOCK_INTERVIEW_COMPLETED,
+    RESUME_ANALYZED,
+    LEARNING_SESSION_COMPLETED,
+    DEFAULT
+}
