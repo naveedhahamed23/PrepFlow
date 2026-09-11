@@ -1,189 +1,244 @@
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { CalendarDays, LayoutGrid, Target, GripVertical } from "lucide-react";
-import Card from "../components/ui/Card";
-import Badge from "../components/ui/Badge";
-import { weeklyPlanner as initialPlanner, monthlyGoals } from "../data/planner";
-import { useFetch } from "../hooks/useFetch";
-import plannerService from "../services/plannerService";
-import { cn } from "../utils/cn";
+import { useState, useEffect } from "react";
+import studyPlannerService from "../services/studyPlannerService";
+import PlannerHeader from "../components/studyPlanner/PlannerHeader";
+import TopStats from "../components/studyPlanner/TopStats";
+import ViewAndDateBar from "../components/studyPlanner/ViewAndDateBar";
+import TimelineSchedule from "../components/studyPlanner/TimelineSchedule";
+import AddTaskModal from "../components/studyPlanner/AddTaskModal";
+import AIPlanGeneratorCard from "../components/studyPlanner/AIPlanGeneratorCard";
+import TodaysGoalsCard from "../components/studyPlanner/TodaysGoalsCard";
+import FocusModeCard from "../components/studyPlanner/FocusModeCard";
+import MiniCalendar from "../components/studyPlanner/MiniCalendar";
+import UpcomingDeadlinesCard from "../components/studyPlanner/UpcomingDeadlinesCard";
+import StudyTipCard from "../components/studyPlanner/StudyTipCard";
+import WeekView from "../components/studyPlanner/WeekView";
+import MonthView from "../components/studyPlanner/MonthView";
 
-const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const categoryColor = {
-  DSA: "primary", Aptitude: "warning", "Core CS": "default", Interview: "danger", Revision: "success", Resume: "default",
-};
+export default function StudyPlanner() {
+  // Global State
+  const [selectedDate, setSelectedDate] = useState("2026-09-11");
+  const [viewMode, setViewMode] = useState("today"); // "today" | "week" | "month"
 
-function WeeklyBoard() {
-  const [board, setBoard] = useState(initialPlanner);
-  const [dragItem, setDragItem] = useState(null);
+  // Data State
+  const [tasks, setTasks] = useState([]);
+  const [goals, setGoals] = useState([]);
+  const [deadlines, setDeadlines] = useState([]);
 
-  const onDrop = (day) => {
-    if (!dragItem) return;
-    setBoard((prev) => {
-      const next = { ...prev };
-      next[dragItem.day] = next[dragItem.day].filter((_, i) => i !== dragItem.index);
-      next[day] = [...next[day], dragItem.task];
-      return next;
+  // Modal State
+  const [addTaskModalOpen, setAddTaskModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+
+  // Load initial data from service
+  useEffect(() => {
+    setTasks(studyPlannerService.getTasks());
+    setGoals(studyPlannerService.getGoals());
+    setDeadlines(studyPlannerService.getDeadlines());
+  }, []);
+
+  // Task Handlers
+  const handleSaveTask = (taskData) => {
+    if (taskData.id) {
+      // Edit existing task
+      const updated = studyPlannerService.updateTask(taskData.id, taskData);
+      setTasks(updated);
+    } else {
+      // Add new task
+      const { tasks: updated } = studyPlannerService.addTask(taskData);
+      setTasks(updated);
+    }
+  };
+
+  const handleToggleTaskComplete = (taskId) => {
+    const updated = studyPlannerService.toggleTaskComplete(taskId);
+    setTasks(updated);
+  };
+
+  const handleDeleteTask = (taskId) => {
+    if (window.confirm("Are you sure you want to delete this task?")) {
+      const updated = studyPlannerService.deleteTask(taskId);
+      setTasks(updated);
+    }
+  };
+
+  const handleEditTask = (task) => {
+    setEditingTask(task);
+    setAddTaskModalOpen(true);
+  };
+
+  const handleOpenNewTaskModal = () => {
+    setEditingTask(null);
+    setAddTaskModalOpen(true);
+  };
+
+  // Goals Handlers
+  const handleToggleGoalComplete = (goalId) => {
+    const updated = studyPlannerService.toggleGoalComplete(goalId);
+    setGoals(updated);
+  };
+
+  const handleAddGoal = (goalData) => {
+    const { goals: updated } = studyPlannerService.addGoal(goalData);
+    setGoals(updated);
+  };
+
+  const handleUpdateGoal = (goalId, updates) => {
+    const updated = studyPlannerService.updateGoal(goalId, updates);
+    setGoals(updated);
+  };
+
+  const handleDeleteGoal = (goalId) => {
+    const updated = studyPlannerService.deleteGoal(goalId);
+    setGoals(updated);
+  };
+
+  // Deadlines Handlers
+  const handleAddDeadline = (deadlineData) => {
+    const { deadlines: updated } = studyPlannerService.addDeadline(deadlineData);
+    setDeadlines(updated);
+  };
+
+  const handleToggleDeadlineComplete = (deadlineId) => {
+    const updated = studyPlannerService.toggleDeadlineComplete(deadlineId);
+    setDeadlines(updated);
+  };
+
+  const handleDeleteDeadline = (deadlineId) => {
+    const updated = studyPlannerService.deleteDeadline(deadlineId);
+    setDeadlines(updated);
+  };
+
+  // AI Plan Generator Handler
+  const handleApplyGeneratedPlan = (generatedPlan) => {
+    if (!generatedPlan || !generatedPlan.tasks) return;
+
+    // Save generated tasks and goals to current state & persistence
+    const existingTasks = studyPlannerService.getTasks();
+    const updatedTasks = [...generatedPlan.tasks, ...existingTasks];
+    studyPlannerService.saveTasks(updatedTasks);
+    setTasks(updatedTasks);
+
+    if (generatedPlan.goals && generatedPlan.goals.length > 0) {
+      const existingGoals = studyPlannerService.getGoals();
+      const updatedGoals = [...generatedPlan.goals, ...existingGoals];
+      studyPlannerService.saveGoals(updatedGoals);
+      setGoals(updatedGoals);
+    }
+  };
+
+  // Focus Session Complete Handler
+  const handleFocusSessionComplete = (minutes) => {
+    // Add completed minutes to study goal progress
+    const updatedGoals = goals.map((g) => {
+      if (g.category === "Study") {
+        const addedHours = Number((minutes / 60).toFixed(2));
+        const nextCurrent = Number((g.current + addedHours).toFixed(2));
+        return {
+          ...g,
+          current: nextCurrent,
+          completed: nextCurrent >= g.target,
+        };
+      }
+      return g;
     });
-    setDragItem(null);
+    studyPlannerService.saveGoals(updatedGoals);
+    setGoals(updatedGoals);
   };
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
-      {days.map((day) => (
-        <div
-          key={day}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={() => onDrop(day)}
-          className="min-h-[220px] rounded-2xl border border-bg-border bg-bg-card p-3"
-        >
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-muted">{day}</p>
-          <div className="space-y-2">
-            {board[day]?.map((task, i) => (
-              <div
-                key={i}
-                draggable
-                onDragStart={() => setDragItem({ day, index: i, task })}
-                className="cursor-grab rounded-xl border border-bg-border/60 bg-bg px-3 py-2.5 text-xs active:cursor-grabbing"
-              >
-                <div className="mb-1.5 flex items-center gap-1.5 text-text-muted">
-                  <GripVertical size={11} />
-                  <Badge variant={categoryColor[task.category]}>{task.category}</Badge>
-                </div>
-                <p className="text-text">{task.title}</p>
-              </div>
-            ))}
+    <div className="w-full min-w-0 px-2 sm:px-4 py-4 space-y-6">
+      {/* 1. Top Header with Breadcrumbs & Motivational Banner */}
+      <PlannerHeader />
+
+      {/* 2. Top Summary Statistics Cards */}
+      <TopStats tasks={tasks} goals={goals} streakDays={12} />
+
+      {/* 3. View Switcher (Today/Week/Month) & Date Navigation Controls */}
+      <ViewAndDateBar
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        selectedDate={selectedDate}
+        setSelectedDate={setSelectedDate}
+        onOpenAddTask={handleOpenNewTaskModal}
+      />
+
+      {/* 4. Main Workspace Layout */}
+      {viewMode === "week" ? (
+        <WeekView
+          tasks={tasks}
+          onOpenAddTask={handleOpenNewTaskModal}
+          onSelectDate={setSelectedDate}
+        />
+      ) : viewMode === "month" ? (
+        <MonthView
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          tasks={tasks}
+        />
+      ) : (
+        /* Today's View: 3 Columns matching reference screenshot */
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 min-w-0">
+          {/* Column 1: Today's Schedule (lg:col-span-5) */}
+          <div className="lg:col-span-5 space-y-4 min-w-0">
+            <div className="rounded-xl border border-[#1E2D45] bg-[#0D1424] p-5 shadow-sm">
+              <h3 className="mb-4 text-base font-bold text-white">Today&apos;s Schedule</h3>
+              <TimelineSchedule
+                tasks={tasks}
+                selectedDate={selectedDate}
+                onToggleComplete={handleToggleTaskComplete}
+                onEditTask={handleEditTask}
+                onDeleteTask={handleDeleteTask}
+                onOpenAddTask={handleOpenNewTaskModal}
+              />
+            </div>
+          </div>
+
+          {/* Column 2: AI Study Plan Generator + Today's Goals + Focus Mode (lg:col-span-4) */}
+          <div className="lg:col-span-4 space-y-6 min-w-0">
+            <AIPlanGeneratorCard
+              onApplyGeneratedPlan={handleApplyGeneratedPlan}
+            />
+
+            <TodaysGoalsCard
+              goals={goals}
+              onToggleGoalComplete={handleToggleGoalComplete}
+              onAddGoal={handleAddGoal}
+              onUpdateGoal={handleUpdateGoal}
+              onDeleteGoal={handleDeleteGoal}
+            />
+
+            <FocusModeCard
+              onFocusSessionComplete={handleFocusSessionComplete}
+            />
+          </div>
+
+          {/* Column 3: Calendar + Deadlines + Study Tip (lg:col-span-3) */}
+          <div className="lg:col-span-3 space-y-6 min-w-0">
+            <MiniCalendar
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+              tasks={tasks}
+            />
+
+            <UpcomingDeadlinesCard
+              deadlines={deadlines}
+              onAddDeadline={handleAddDeadline}
+              onToggleDeadlineComplete={handleToggleDeadlineComplete}
+              onDeleteDeadline={handleDeleteDeadline}
+            />
+
+            <StudyTipCard />
           </div>
         </div>
-      ))}
-    </div>
-  );
-}
+      )}
 
-function MonthlyCalendar() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells = Array.from({ length: firstDay === 0 ? 6 : firstDay - 1 }, () => null).concat(
-    Array.from({ length: daysInMonth }, (_, i) => i + 1)
-  );
-
-  return (
-    <Card>
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-text">
-          {today.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-        </h3>
-      </div>
-      <div className="grid grid-cols-7 gap-1.5 text-center text-[11px] text-text-muted">
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-          <div key={d} className="pb-1 font-medium">{d}</div>
-        ))}
-        {cells.map((day, i) => (
-          <div
-            key={i}
-            className={cn(
-              "flex h-10 items-center justify-center rounded-lg text-xs",
-              day === today.getDate() ? "bg-gradient-to-br from-primary to-accent font-bold text-white" : "text-text hover:bg-bg-hover",
-              !day && "invisible"
-            )}
-          >
-            {day}
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-export default function StudyPlanner() {
-  const [view, setView] = useState("weekly");
-  const { data: todayTasks } = useFetch(() => plannerService.getTodayTasks(), []);
-  const { data: upcoming } = useFetch(() => plannerService.getUpcomingTasks(), []);
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-text">Study Planner</h1>
-          <p className="mt-1 text-sm text-text-muted">Plan your week and drag tasks between days.</p>
-        </div>
-        <div className="flex rounded-xl border border-bg-border p-1">
-          {[
-            { key: "weekly", icon: LayoutGrid, label: "Weekly" },
-            { key: "monthly", icon: CalendarDays, label: "Monthly" },
-          ].map((v) => (
-            <button
-              key={v.key}
-              onClick={() => setView(v.key)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-medium",
-                view === v.key ? "bg-primary text-white" : "text-text-muted hover:text-text"
-              )}
-            >
-              <v.icon size={13} /> {v.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card>
-          <h3 className="mb-4 text-sm font-semibold text-text">Today</h3>
-          <div className="space-y-2.5">
-            {todayTasks?.map((t) => (
-              <div key={t.id} className="flex items-center justify-between rounded-xl border border-bg-border/60 px-3 py-2.5 text-sm">
-                <span className={t.done ? "text-text-muted line-through" : "text-text"}>{t.title}</span>
-                <Badge variant={categoryColor[t.category]}>{t.category}</Badge>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <h3 className="mb-4 text-sm font-semibold text-text">Upcoming</h3>
-          <div className="space-y-2.5">
-            {upcoming?.map((t) => (
-              <div key={t.id} className="flex items-center justify-between rounded-xl border border-bg-border/60 px-3 py-2.5 text-sm">
-                <span className="text-text">{t.title}</span>
-                <Badge variant={categoryColor[t.category]}>{t.category}</Badge>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <div className="mb-4 flex items-center gap-2">
-            <Target size={15} className="text-primary" />
-            <h3 className="text-sm font-semibold text-text">Monthly Goals</h3>
-          </div>
-          <div className="space-y-4">
-            {monthlyGoals.map((g) => {
-              const pct = Math.round((g.progress / g.target) * 100);
-              return (
-                <div key={g.id}>
-                  <div className="mb-1.5 flex justify-between text-xs">
-                    <span className="text-text">{g.title}</span>
-                    <span className="text-text-muted">{g.progress}/{g.target}</span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-bg-border">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${pct}%` }}
-                      transition={{ duration: 0.8, ease: "easeOut" }}
-                      className="h-full rounded-full bg-gradient-to-r from-primary to-accent"
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      </div>
-
-      {view === "weekly" ? <WeeklyBoard /> : <MonthlyCalendar />}
+      {/* Add / Edit Task Modal */}
+      <AddTaskModal
+        open={addTaskModalOpen}
+        onClose={() => setAddTaskModalOpen(false)}
+        onSaveTask={handleSaveTask}
+        editingTask={editingTask}
+        initialDate={selectedDate}
+      />
     </div>
   );
 }

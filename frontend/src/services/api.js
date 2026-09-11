@@ -34,6 +34,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem("prepflow_token");
       localStorage.removeItem("prepflow_user");
+      window.dispatchEvent(new Event("prepflow:unauthorized"));
     }
     return Promise.reject(error);
   }

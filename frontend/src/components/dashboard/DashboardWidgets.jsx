@@ -6,7 +6,7 @@ import { formatDate } from "../../utils/format";
 
 export function ActivityTimeline({ items }) {
   return (
-    <Card>
+    <Card className="min-h-[165px] rounded-xl p-3.5">
       <h3 className="mb-4 text-sm font-semibold text-text">Activity Timeline</h3>
       <div className="space-y-5">
         {items.length === 0 ? <p className="text-sm text-text-muted">No activity recorded yet.</p> : items.map((item, i) => (

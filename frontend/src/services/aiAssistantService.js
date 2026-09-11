@@ -1,29 +1,66 @@
+// ============================================================
+// aiAssistantService.js — PrepFlow AI Service
+// ============================================================
+// Architecture:
+//   React → aiAssistantService → Spring Boot REST → Gemini API
+//
+// NO API keys are stored here. All AI calls go through the backend.
+// ============================================================
+
 import api, { mockResponse } from "./api";
 
-const USE_MOCK = true;
+// ============================================================
+// PrepFlow Context — boundaries for future integration
+// ============================================================
 
-const canned = [
-  "Sure — let's break this down. Start by identifying the pattern: is this a two-pointer, sliding window, or DP problem?",
-  "Here's a tip: when you're stuck on a graph problem, always ask whether BFS or DFS fits the traversal order you need.",
-  "For your resume, try quantifying impact — 'improved API latency by 35%' reads far stronger than 'improved performance'.",
-  "Good question. In an HR round, tie your answer back to a specific outcome you drove, not just your responsibilities.",
-  "Let's revise this together. Can you walk me through your current approach and where it breaks down?",
-];
+export const PREPFLOW_CONTEXT_KEYS = {
+  DSA_PROGRESS: "dsa_progress",
+  RESUME: "resume",
+  INTERVIEW_RESULTS: "interview_results",
+  STUDY_PLAN: "study_plan",
+  ANALYTICS: "analytics",
+};
 
 const aiAssistantService = {
-  /** GET /api/assistant/history */
-  getHistory: async () => {
-    if (USE_MOCK) return mockResponse([]);
-    return api.get("/assistant/history");
+  /**
+   * Send a message and receive a reply from Gemini via Spring Boot.
+   */
+  sendMessage: async (message, _conversationId, _context = {}) => {
+    // The backend endpoint is POST /api/ai/chat
+    // We expect the response to be { message: "..." }
+    const { data } = await api.post("/ai/chat", { message });
+    return { data: { content: data.message } };
   },
 
-  /** POST /api/assistant/message  body: { message, conversationId } */
-  sendMessage: async (message) => {
-    if (USE_MOCK) {
-      const reply = canned[Math.floor(Math.random() * canned.length)];
-      return mockResponse({ role: "assistant", content: reply }, 900);
-    }
-    return api.post("/assistant/message", { message });
+  /**
+   * Send a code-review request.
+   */
+  reviewCode: async (code, language, problem = "") => {
+    const userContent = `Review my ${language} code:\n\`\`\`${language}\n${code}\n\`\`\`${problem ? `\n\nContext: ${problem}` : ""}`;
+    const { data } = await api.post("/ai/chat", { message: userContent });
+    return { data: { content: data.message } };
+  },
+
+  /**
+   * Load conversation history for the authenticated user.
+   * Future: GET /api/ai/conversations
+   */
+  getConversations: async () => {
+    return mockResponse([]); // Not implemented in backend yet
+  },
+
+  /**
+   * Get DSA context for the AI (future integration point).
+   */
+  getDSAContext: async () => {
+    return mockResponse(null);
+  },
+
+  /**
+   * Get Resume context for the AI (future integration point).
+   */
+  getResumeContext: async () => {
+    return mockResponse(null);
   },
 };
 

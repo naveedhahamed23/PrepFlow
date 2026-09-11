@@ -1,56 +1,73 @@
 import { motion } from "framer-motion";
-import { Flame, Clock, Target, Mic } from "lucide-react";
-import Card from "../ui/Card";
+import { Code2, BarChart3, Mic, FileText, CalendarDays } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 
 export default function ProgressOverview({ data }) {
-  const pct = data.overallProgress;
-  const circumference = 2 * Math.PI * 42;
-  const offset = pct == null ? circumference : circumference - (pct / 100) * circumference;
+  const icons = {
+    "DSA": Code2,
+    "Aptitude": BarChart3,
+    "Interviews": Mic,
+    "Resume": FileText,
+    "Study Consistency": CalendarDays
+  };
 
-  const stats = [
-    { icon: Flame, label: "Streak", value: `${data.studyStreak} days` },
-    { icon: Clock, label: "Study time", value: `${data.studyMinutes} min` },
-    { icon: Mic, label: "Interviews", value: data.interviewCount },
-    { icon: Target, label: "Aptitude", value: data.aptitudeAverage == null ? "No data" : `${Math.round(data.aptitudeAverage)}%` },
+  const donutData = [
+    { name: "Done", value: data.overall },
+    { name: "Left", value: 100 - data.overall }
   ];
 
   return (
-    <Card>
-      <h3 className="mb-5 text-sm font-semibold text-text">Progress Overview</h3>
-      <div className="flex items-center gap-6">
-        <div className="relative h-28 w-28 shrink-0">
-          <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
-            <circle cx="50" cy="50" r="42" fill="none" stroke="#27272A" strokeWidth="8" />
-            <motion.circle
-              cx="50"
-              cy="50"
-              r="42"
-              fill="none"
-              stroke="#3B82F6"
-              strokeWidth="8"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              initial={{ strokeDashoffset: circumference }}
-              animate={{ strokeDashoffset: offset }}
-              transition={{ duration: 1, ease: "easeOut" }}
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-lg font-bold text-text">{pct == null ? "No data" : `${pct}%`}</span>
-            <span className="text-[10px] text-text-muted">Overall progress</span>
-          </div>
+    <div className="rounded-xl border border-[#1E2D45] bg-[#0D1424] p-4 flex flex-col min-h-[260px] shadow-[0_4px_24px_-4px_rgba(0,0,0,0.5)] card-hover">
+      {/* Header with overall donut */}
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <h3 className="text-sm font-semibold text-[#F0F4FF]">Preparation Progress</h3>
+          <p className="text-xs text-[#7B91B0] mt-0.5">Overall Readiness</p>
         </div>
-
-        <div className="grid flex-1 grid-cols-2 gap-3">
-          {stats.map((s) => (
-            <div key={s.label} className="rounded-xl border border-bg-border/60 px-3 py-2.5">
-              <s.icon size={14} className="text-primary" />
-              <p className="mt-1.5 text-base font-semibold text-text">{s.value}</p>
-              <p className="text-[11px] text-text-muted">{s.label}</p>
-            </div>
-          ))}
+        <div className="relative h-14 w-14 flex items-center justify-center shrink-0">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={donutData} innerRadius={22} outerRadius={28} startAngle={90} endAngle={-270} dataKey="value" stroke="none">
+                <Cell fill="#06B6D4" />
+                <Cell fill="#1E2D45" />
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+          <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-[#F0F4FF]">
+            {data.overall}%
+          </span>
         </div>
       </div>
-    </Card>
+
+      {/* Progress bars */}
+      <div className="flex-1 flex flex-col justify-end space-y-3">
+        {data.breakdown.map((item, index) => {
+          const Icon = icons[item.name] || Code2;
+          return (
+            <div key={item.name} className="flex items-center gap-2.5">
+              <div
+                className="flex h-5 w-5 items-center justify-center rounded shrink-0"
+                style={{ backgroundColor: `${item.color}18`, color: item.color }}
+              >
+                <Icon size={11} />
+              </div>
+              <div className="flex-1 min-w-0 flex items-center gap-2">
+                <span className="w-[72px] truncate text-[10px] text-[#7B91B0] shrink-0">{item.name}</span>
+                <div className="flex-1 h-1.5 overflow-hidden rounded-full bg-[#1E2D45]">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${item.value}%` }}
+                    transition={{ duration: 0.8, delay: index * 0.08, ease: "easeOut" }}
+                    className="h-full rounded-full"
+                    style={{ backgroundColor: item.color }}
+                  />
+                </div>
+                <span className="w-7 text-right text-[10px] font-semibold text-[#C8D8F0] shrink-0">{item.value}%</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

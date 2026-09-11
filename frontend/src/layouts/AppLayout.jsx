@@ -15,9 +15,9 @@ export default function AppLayout() {
     <div className="flex min-h-screen bg-bg">
       <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
 
-      <div className="flex min-h-screen flex-1 flex-col md:w-[calc(100%-248px)]">
+      <div className="flex min-h-screen flex-1 flex-col min-w-0 overflow-x-hidden">
         <Topbar onMenuClick={() => setMobileOpen(true)} />
-        <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main className="flex-1 px-3 py-3 sm:px-5 lg:px-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -25,6 +25,7 @@ export default function AppLayout() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full min-w-0"
             >
               <Outlet />
             </motion.div>

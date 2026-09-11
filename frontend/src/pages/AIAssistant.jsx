@@ -1,163 +1,93 @@
-import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
-import { Send, Bot, User, Plus, MessageSquare, Trash2 } from "lucide-react";
-import Avatar from "../components/ui/Avatar";
-import MarkdownMessage from "../components/ai/MarkdownMessage";
-import TypingIndicator from "../components/ai/TypingIndicator";
-import { useAuth } from "../context/AuthContext";
-import aiAssistantService from "../services/aiAssistantService";
-import { cn } from "../utils/cn";
+import { useState } from "react";
+import { Sparkles, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { AIAssistantProvider } from "../context/AIAssistantContext";
+import ChatSidebar from "../components/aiAssistant/ChatSidebar";
+import ChatWorkspace from "../components/aiAssistant/ChatWorkspace";
+import QuickActions from "../components/aiAssistant/QuickActions";
+import SuggestedPrompts from "../components/aiAssistant/SuggestedPrompts";
+import UpgradeCard from "../components/aiAssistant/UpgradeCard";
 
-const suggestedPrompts = [
-  "Explain the sliding window technique with an example",
-  "Review my approach to Two Sum",
-  "How should I answer 'Tell me about yourself'?",
-  "Give me a `Java` snippet for BFS on a graph",
-];
-
-const conversationHistory = [
-  { id: "c1", title: "Sliding window explained" },
-  { id: "c2", title: "System design basics" },
-  { id: "c3", title: "Resume bullet points review" },
-  { id: "c4", title: "HR round prep tips" },
-];
-
-export default function AIAssistant() {
-  const { user } = useAuth();
-  const [messages, setMessages] = useState([
-    { role: "assistant", content: "Hey! I'm your PrepFlow assistant. Ask me about DSA, aptitude, resumes, or interview prep — I'm happy to help." },
-  ]);
-  const [input, setInput] = useState("");
-  const [typing, setTyping] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const scrollRef = useRef(null);
-
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, typing]);
-
-  const send = async (text) => {
-    const content = text ?? input;
-    if (!content.trim()) return;
-    setMessages((m) => [...m, { role: "user", content }]);
-    setInput("");
-    setTyping(true);
-    try {
-      const { data } = await aiAssistantService.sendMessage(content);
-      setMessages((m) => [...m, data]);
-    } finally {
-      setTyping(false);
-    }
-  };
+function AIAssistantInner() {
+  const [leftOpen, setLeftOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] gap-4">
-      {/* Sidebar history */}
-      <div className={cn("hidden w-64 shrink-0 flex-col rounded-2xl border border-bg-border bg-bg-card lg:flex")}>
-        <div className="border-b border-bg-border p-3">
-          <button className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-accent py-2.5 text-sm font-semibold text-white">
-            <Plus size={15} /> New Chat
-          </button>
+    <div className="flex flex-col h-[calc(100vh-5.5rem)] min-w-0 -mt-1">
+      {/* Page Header */}
+      <div className="flex items-start justify-between mb-3 gap-4 flex-wrap">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold text-text">PrepFlow AI</h1>
+            <span className="flex items-center gap-1.5 rounded-full bg-success/15 border border-success/30 px-2.5 py-0.5 text-[11px] font-medium text-success">
+              <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
+              Online
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-text-muted">
+            Your personal AI mentor for DSA, aptitude, interviews, and more.
+          </p>
         </div>
-        <div className="flex-1 space-y-1 overflow-y-auto p-2">
-          {conversationHistory.map((c) => (
+
+        <div className="flex items-start gap-3">
+          {/* Toggle panel buttons — mobile */}
+          <div className="flex gap-1 lg:hidden">
             <button
-              key={c.id}
-              className="group flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm text-text-muted hover:bg-white/5 hover:text-text"
+              onClick={() => setLeftOpen(o => !o)}
+              className="p-2 rounded-lg border border-bg-border/60 text-text-muted hover:text-text"
+              title="Toggle recent chats"
             >
-              <MessageSquare size={14} className="shrink-0" />
-              <span className="flex-1 truncate">{c.title}</span>
-              <Trash2 size={13} className="shrink-0 opacity-0 group-hover:opacity-100" />
+              {leftOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
             </button>
-          ))}
+          </div>
+
+          <div className="hidden sm:flex flex-col items-end text-right">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-text">
+              <Sparkles size={13} className="text-primary" />
+              Powered by advanced AI
+            </div>
+            <p className="text-[11px] text-text-muted mt-0.5">
+              Get instant, accurate and detailed solutions.
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Chat area */}
-      <div className="flex flex-1 flex-col rounded-2xl border border-bg-border bg-bg-card">
-        <div ref={scrollRef} className="flex-1 space-y-5 overflow-y-auto p-5">
-          {messages.map((m, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={cn("flex gap-3", m.role === "user" && "flex-row-reverse")}
-            >
-              {m.role === "assistant" ? (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent">
-                  <Bot size={15} className="text-white" />
-                </div>
-              ) : (
-                <Avatar src={user?.avatar} name={user?.name} size="sm" />
-              )}
-              <div
-                className={cn(
-                  "max-w-[80%] rounded-2xl px-4 py-3",
-                  m.role === "assistant" ? "bg-bg-hover text-text" : "bg-gradient-to-r from-primary to-accent text-white"
-                )}
-              >
-                <MarkdownMessage content={m.content} />
-              </div>
-            </motion.div>
-          ))}
+      {/* Three-column workspace */}
+      <div className="flex flex-1 gap-3 min-h-0 min-w-0 overflow-hidden">
 
-          {typing && (
-            <div className="flex gap-3">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent">
-                <Bot size={15} className="text-white" />
-              </div>
-              <div className="rounded-2xl bg-bg-hover px-2">
-                <TypingIndicator />
-              </div>
-            </div>
-          )}
+        {/* LEFT — Recent Chats */}
+        <div className={`
+          flex-col rounded-xl border border-bg-border/60 bg-[#070c16] overflow-hidden transition-all duration-200
+          ${leftOpen ? "flex w-60 shrink-0" : "hidden"}
+          lg:flex lg:w-60 lg:shrink-0
+        `}>
+          <ChatSidebar className="h-full" />
         </div>
 
-        {messages.length === 1 && (
-          <div className="flex flex-wrap gap-2 px-5 pb-3">
-            {suggestedPrompts.map((p) => (
-              <button
-                key={p}
-                onClick={() => send(p)}
-                className="rounded-full border border-bg-border px-3.5 py-1.5 text-xs text-text-muted hover:border-primary/40 hover:text-primary"
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-        )}
+        {/* CENTER — Chat workspace */}
+        <div className="flex-1 flex flex-col rounded-xl border border-bg-border/60 bg-[#070c16] overflow-hidden min-w-0">
+          <ChatWorkspace />
+        </div>
 
-        <div className="border-t border-bg-border p-4">
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              send();
-            }}
-            className="flex items-end gap-3"
-          >
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  send();
-                }
-              }}
-              rows={1}
-              placeholder="Ask PrepFlow AI anything..."
-              className="max-h-32 flex-1 resize-none rounded-xl border border-bg-border bg-bg px-4 py-2.5 text-sm text-text placeholder:text-text-muted focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim()}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-r from-primary to-accent text-white shadow-glow disabled:opacity-40"
-            >
-              <Send size={16} />
-            </button>
-          </form>
+        {/* RIGHT — Tools */}
+        <div className={`
+          flex-col gap-3 w-64 shrink-0 overflow-y-auto custom-scrollbar
+          ${rightOpen ? "flex" : "hidden"}
+          xl:flex xl:w-64 xl:shrink-0
+        `}>
+          <QuickActions />
+          <SuggestedPrompts />
+          <UpgradeCard />
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AIAssistant() {
+  return (
+    <AIAssistantProvider>
+      <AIAssistantInner />
+    </AIAssistantProvider>
   );
 }

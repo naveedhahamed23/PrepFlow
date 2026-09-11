@@ -1,13 +1,13 @@
 import { cn } from "../../utils/cn";
 
-export default function Table({ columns, data, rowKey = "id", onRowClick, className }) {
+export default function Table({ columns, data, rowKey = "id", onRowClick, className, compact = false }) {
   return (
     <div className={cn("overflow-x-auto rounded-2xl border border-bg-border", className)}>
-      <table className="w-full min-w-[720px] text-left text-sm">
+      <table className={cn("w-full min-w-[720px] text-left", compact ? "text-xs" : "text-sm")}>
         <thead>
           <tr className="border-b border-bg-border bg-bg-card/60">
             {columns.map((col) => (
-              <th key={col.key} className="px-4 py-3 font-medium text-text-muted whitespace-nowrap">
+              <th key={col.key} className={cn("font-medium text-text-muted whitespace-nowrap", compact ? "px-3 py-2" : "px-4 py-3")}>
                 {col.header}
               </th>
             ))}
@@ -31,7 +31,7 @@ export default function Table({ columns, data, rowKey = "id", onRowClick, classN
               )}
             >
               {columns.map((col) => (
-                <td key={col.key} className="px-4 py-3.5 align-middle">
+                <td key={col.key} className={cn("align-middle", compact ? "px-3 py-2" : "px-4 py-3.5")}>
                   {col.render ? col.render(row) : row[col.key]}
                 </td>
               ))}

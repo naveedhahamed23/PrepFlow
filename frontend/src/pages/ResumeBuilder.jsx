@@ -1,143 +1,329 @@
-import { useRef, useState } from "react";
-import { motion } from "framer-motion";
-import { Upload, Download, Sparkles, GraduationCap, Briefcase, Wrench } from "lucide-react";
-import Card from "../components/ui/Card";
-import Badge from "../components/ui/Badge";
-import Button from "../components/ui/Button";
-import { useFetch } from "../hooks/useFetch";
+import { useState, useCallback } from "react";
 import resumeService from "../services/resumeService";
+import resumeAnalysisService from "../services/resumeAnalysisService";
 import { useToast } from "../context/ToastContext";
-import { formatDate } from "../utils/format";
+import ResumeTabs from "../components/resume/ResumeTabs";
+import { ActionCards } from "../components/resume/ActionCards";
+import { ResumeAnalysis } from "../components/resume/ResumeAnalysis";
+import { AISuggestions } from "../components/resume/AISuggestions";
+import { TemplateSelector } from "../components/resume/TemplateSelector";
+import { ResumePreview } from "../components/resume/ResumePreview";
+import { ResumeEditor } from "../components/resume/ResumeEditor";
+import { CoverLetter } from "../components/resume/CoverLetter";
+import { MyResumes } from "../components/resume/MyResumes";
+import { initialResumeState } from "../data/resumeData";
+import Button from "../components/ui/Button";
+import { Save, RefreshCw } from "lucide-react";
+
+// Derive empty resume data shape
+const emptyResumeData = {
+  personalInfo: { name: "", title: "", email: "", phone: "", location: "", linkedin: "", github: "" },
+  summary: "",
+  education: [],
+  skills: [],
+  experience: [],
+  projects: [],
+};
 
 export default function ResumeBuilder() {
-  const { data: resume, loading, refetch } = useFetch(() => resumeService.getResume(), []);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef(null);
   const toast = useToast();
+
+  // Active tab
+  const [activeTab, setActiveTab] = useState("build");
+
+  // Resume state
+  const [resumeData, setResumeData] = useState(emptyResumeData);
+  const [hasResume, setHasResume] = useState(false);
+  const [resumeId, setResumeId] = useState(null);
+  const [fileName, setFileName] = useState(null);
+
+  // UI states
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState("modern");
+
+  // Analysis state (lazy — only loaded on Analyze tab)
+  const [analysis, setAnalysis] = useState(null);
+  const [suggestions, setSuggestions] = useState(null);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  // My Resumes list
+  const [myResumes, setMyResumes] = useState([
+    {
+      id: "r_1",
+      name: "Software Engineer Resume",
+      template: "modern",
+      lastUpdated: "2026-09-10",
+      status: "Active",
+      data: initialResumeState.data,
+    },
+  ]);
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
 
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Validate
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      toast.error("Only PDF files are accepted.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("File size must be under 10MB.");
+      return;
+    }
+
     setUploading(true);
+    setFileName(file.name);
     try {
-      await resumeService.uploadResume(file);
-      toast.success("Resume analyzed successfully.");
-      refetch();
+      const res = await resumeService.uploadResume(file);
+      const { data, id } = res.data;
+      setResumeData(data || initialResumeState.data);
+      setHasResume(true);
+      if (id) setResumeId(id);
+      toast.success("Resume uploaded and analyzed!");
+      // Navigate to Build tab after upload
+      setActiveTab("build");
     } catch {
       toast.error("Upload failed. Please try again.");
+      setFileName(null);
     } finally {
       setUploading(false);
     }
   };
 
-  if (loading || !resume) {
-    return <div className="h-64 animate-pulse rounded-2xl bg-bg-card" />;
-  }
+  const handleCreateNew = () => {
+    setResumeData(emptyResumeData);
+    setHasResume(true);
+    setResumeId(null);
+    setFileName(null);
+    setAnalysis(null);
+    setSuggestions(null);
+    setActiveTab("build");
+    toast.success("New resume started. Fill in your details.");
+  };
 
-  const scoreColor = resume.atsScore >= 80 ? "#22C55E" : resume.atsScore >= 60 ? "#F59E0B" : "#EF4444";
-  const circumference = 2 * Math.PI * 42;
-  const offset = circumference - (resume.atsScore / 100) * circumference;
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (resumeId) {
+        await resumeService.updateResume(resumeId, { data: resumeData, template: selectedTemplate });
+      } else {
+        const res = await resumeService.saveResume(resumeData, fileName || "My Resume", selectedTemplate);
+        setResumeId(res.data.id);
+        // Add to myResumes list
+        setMyResumes((prev) => [
+          ...prev,
+          {
+            id: res.data.id,
+            name: fileName || "My Resume",
+            template: selectedTemplate,
+            lastUpdated: new Date().toISOString().split("T")[0],
+            status: "Active",
+            data: resumeData,
+          },
+        ]);
+      }
+      toast.success("Resume saved successfully!");
+    } catch {
+      toast.error("Save failed. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAnalyze = useCallback(async () => {
+    if (!hasResume) {
+      toast.error("Please upload or create a resume first.");
+      return;
+    }
+    setAnalyzing(true);
+    try {
+      const [analysisRes, suggestionsRes] = await Promise.all([
+        resumeAnalysisService.analyzeResume(resumeId, resumeData),
+        resumeAnalysisService.getSuggestions(resumeId, resumeData),
+      ]);
+      setAnalysis(analysisRes.data);
+      setSuggestions(suggestionsRes.data);
+    } catch {
+      toast.error("Analysis failed. Please try again.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [hasResume, resumeId, resumeData, toast]);
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    // Auto-trigger analysis when switching to Analyze tab
+    if (tab === "analyze" && hasResume && !analysis && !analyzing) {
+      handleAnalyze();
+    }
+  };
+
+  const handleDeleteResume = (id) => {
+    setMyResumes((prev) => prev.filter((r) => r.id !== id));
+    toast.success("Resume deleted.");
+  };
+
+  const handleDuplicateResume = (resume) => {
+    const duplicate = {
+      ...resume,
+      id: `r_${Date.now()}`,
+      name: `${resume.name} (Copy)`,
+      lastUpdated: new Date().toISOString().split("T")[0],
+      status: "Draft",
+    };
+    setMyResumes((prev) => [...prev, duplicate]);
+    toast.success("Resume duplicated.");
+  };
+
+  const handleEditResume = (resume) => {
+    setResumeData(resume.data);
+    setResumeId(resume.id);
+    setHasResume(true);
+    setSelectedTemplate(resume.template || "modern");
+    setFileName(resume.name);
+    setAnalysis(null);
+    setSuggestions(null);
+    setActiveTab("build");
+    toast.success(`Editing "${resume.name}"`);
+  };
+
+  // ── Tab content renderer ────────────────────────────────────────────────────
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case "build":
+        return (
+          <div className="flex flex-col gap-6">
+            <ActionCards onUpload={handleUpload} isUploading={uploading} onCreateNew={handleCreateNew} />
+            {hasResume && (
+              <>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-text">
+                    {fileName || "Resume Details"}
+                  </h3>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon={Save}
+                    loading={saving}
+                    onClick={handleSave}
+                  >
+                    Save
+                  </Button>
+                </div>
+                <ResumeEditor data={resumeData} onChange={setResumeData} />
+              </>
+            )}
+          </div>
+        );
+
+      case "analyze":
+        if (!hasResume) {
+          return (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <RefreshCw size={28} className="text-primary" />
+              </div>
+              <h3 className="text-base font-semibold text-text mb-2">No resume to analyze</h3>
+              <p className="text-sm text-text-muted mb-4">Upload or create a resume first.</p>
+              <Button onClick={() => setActiveTab("build")}>Go to Build & Edit</Button>
+            </div>
+          );
+        }
+        if (analyzing) {
+          return (
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <div className="relative w-14 h-14">
+                <div className="w-14 h-14 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <RefreshCw size={18} className="text-primary" />
+                </div>
+              </div>
+              <p className="text-sm text-text-muted">Analyzing your resume…</p>
+            </div>
+          );
+        }
+        return (
+          <div className="space-y-6">
+            {analysis ? (
+              <>
+                <ResumeAnalysis analysis={analysis} />
+                {suggestions && <AISuggestions suggestions={suggestions} onApplySuggestion={() => {}} />}
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Button icon={RefreshCw} onClick={handleAnalyze}>Analyze My Resume</Button>
+              </div>
+            )}
+          </div>
+        );
+
+      case "templates":
+        return (
+          <div>
+            <TemplateSelector selectedTemplate={selectedTemplate} setSelectedTemplate={setSelectedTemplate} />
+          </div>
+        );
+
+      case "cover-letter":
+        return (
+          <CoverLetter resumeData={resumeData} resumeId={resumeId} />
+        );
+
+      case "my-resumes":
+        return (
+          <MyResumes
+            resumes={myResumes}
+            onCreateNew={handleCreateNew}
+            onEdit={handleEditResume}
+            onDelete={handleDeleteResume}
+            onDuplicate={handleDuplicateResume}
+          />
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  // ── Layout ──────────────────────────────────────────────────────────────────
+
+  // Tabs that show side-by-side preview layout
+  const showPreview = ["build", "templates"].includes(activeTab);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-text">Resume Builder</h1>
-          <p className="mt-1 text-sm text-text-muted">Upload your resume for an instant ATS score and suggestions.</p>
-        </div>
-        <div className="flex gap-3">
-          <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handleUpload} />
-          <Button variant="secondary" icon={Upload} loading={uploading} onClick={() => fileInputRef.current?.click()}>
-            Upload Resume
-          </Button>
-          <Button icon={Download}>Download</Button>
-        </div>
+    <div className="flex flex-col h-[calc(100vh-theme(spacing.24))]">
+      {/* Page Header */}
+      <div className="mb-4">
+        <h1 className="text-2xl font-bold text-text">Resume Builder</h1>
+        <p className="mt-1 text-sm text-text-muted">Create, optimize, and land your dream job with AI.</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Card className="flex flex-col items-center justify-center text-center">
-          <div className="relative h-28 w-28">
-            <svg viewBox="0 0 100 100" className="h-full w-full -rotate-90">
-              <circle cx="50" cy="50" r="42" fill="none" stroke="#27272A" strokeWidth="8" />
-              <motion.circle
-                cx="50" cy="50" r="42" fill="none" stroke={scoreColor} strokeWidth="8" strokeLinecap="round"
-                strokeDasharray={circumference}
-                initial={{ strokeDashoffset: circumference }}
-                animate={{ strokeDashoffset: offset }}
-                transition={{ duration: 1, ease: "easeOut" }}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-2xl font-bold text-text">{resume.atsScore}</span>
-              <span className="text-[10px] text-text-muted">ATS Score</span>
+      <ResumeTabs activeTab={activeTab} setActiveTab={handleTabChange} />
+
+      {/* Main Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
+        {showPreview ? (
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(320px,400px)] gap-8 h-full max-w-[1680px] mx-auto">
+            {/* Left: Scrollable workspace */}
+            <div className="flex flex-col gap-0 lg:overflow-y-auto custom-scrollbar lg:pr-2">
+              {renderTabContent()}
+            </div>
+            {/* Right: Sticky preview */}
+            <div className="lg:h-full lg:overflow-hidden">
+              <ResumePreview data={resumeData} hasResume={hasResume} template={selectedTemplate} />
             </div>
           </div>
-          <p className="mt-4 text-xs text-text-muted">{resume.fileName}</p>
-          <p className="text-[11px] text-text-muted">Last updated {formatDate(resume.lastUpdated)}</p>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <div className="mb-3 flex items-center gap-2">
-            <Sparkles size={15} className="text-primary" />
-            <h3 className="text-sm font-semibold text-text">Suggestions to improve your score</h3>
+        ) : (
+          <div className="max-w-[1100px] mx-auto">
+            {renderTabContent()}
           </div>
-          <ul className="space-y-2.5">
-            {resume.suggestions.map((s, i) => (
-              <li key={i} className="flex gap-2.5 rounded-xl border border-bg-border/60 px-3.5 py-2.5 text-sm text-text-muted">
-                <span className="mt-0.5 shrink-0 text-primary">•</span>
-                {s}
-              </li>
-            ))}
-          </ul>
-        </Card>
+        )}
       </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <div className="mb-3 flex items-center gap-2">
-            <Wrench size={15} className="text-primary" />
-            <h3 className="text-sm font-semibold text-text">Skills</h3>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {resume.skills.map((s) => (
-              <Badge key={s} variant="primary">{s}</Badge>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <div className="mb-3 flex items-center gap-2">
-            <GraduationCap size={15} className="text-primary" />
-            <h3 className="text-sm font-semibold text-text">Education</h3>
-          </div>
-          {resume.education.map((e, i) => (
-            <div key={i}>
-              <p className="text-sm font-medium text-text">{e.degree}</p>
-              <p className="text-xs text-text-muted">{e.institution} · {e.year} · {e.score}</p>
-            </div>
-          ))}
-        </Card>
-      </div>
-
-      <Card>
-        <div className="mb-3 flex items-center gap-2">
-          <Briefcase size={15} className="text-primary" />
-          <h3 className="text-sm font-semibold text-text">Projects</h3>
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {resume.projects.map((p) => (
-            <div key={p.name} className="rounded-xl border border-bg-border/60 p-4">
-              <p className="text-sm font-semibold text-text">{p.name}</p>
-              <p className="mt-1 text-xs text-text-muted">{p.description}</p>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {p.tech.map((t) => (
-                  <Badge key={t}>{t}</Badge>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </Card>
     </div>
   );
 }

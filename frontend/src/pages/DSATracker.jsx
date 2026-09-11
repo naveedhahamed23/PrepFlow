@@ -1,123 +1,263 @@
-import { useMemo, useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid } from "recharts";
-import { CheckCircle2, Circle, Code2, TrendingUp } from "lucide-react";
-import Search from "../components/ui/Search";
-import Dropdown from "../components/ui/Dropdown";
-import Table from "../components/ui/Table";
-import Badge from "../components/ui/Badge";
-import { ChartCard } from "../components/ui/Card";
-import StatCard from "../components/dashboard/StatCard";
-import Pagination from "../components/ui/Pagination";
-import { SkeletonTable } from "../components/ui/Skeleton";
-import ProblemDrawer from "../components/dsa/ProblemDrawer";
-import { useFetch } from "../hooks/useFetch";
-import { useDebounce } from "../hooks/useDebounce";
+import { useState, useEffect, useCallback } from "react";
 import dsaService from "../services/dsaService";
-import { difficultyColor, statusColor, formatDate } from "../utils/format";
-
-const PAGE_SIZE = 8;
+import DSAHeader from "../components/dsa/DSAHeader";
+import DSAStatCards from "../components/dsa/DSAStatCards";
+import ProgressByTopicCard from "../components/dsa/ProgressByTopicCard";
+import RightSidebarAnalytics from "../components/dsa/RightSidebarAnalytics";
+import DSAFilterBar from "../components/dsa/DSAFilterBar";
+import DSATable from "../components/dsa/DSATable";
+import AddProblemModal from "../components/dsa/AddProblemModal";
+import ViewProblemModal from "../components/dsa/ViewProblemModal";
+import EditProblemModal from "../components/dsa/EditProblemModal";
+import TopicsView from "../components/dsa/TopicsView";
+import CompaniesView from "../components/dsa/CompaniesView";
+import RevisionView from "../components/dsa/RevisionView";
+import BookmarksView from "../components/dsa/BookmarksView";
 
 export default function DSATracker() {
+  // Navigation & View State
+  const [activeTab, setActiveTab] = useState("overview"); // "overview" | "topics" | "companies" | "revision" | "bookmarks"
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 6;
+
+  // Filter States
   const [search, setSearch] = useState("");
+  const [topic, setTopic] = useState("All");
   const [difficulty, setDifficulty] = useState("All");
   const [status, setStatus] = useState("All");
-  const [page, setPage] = useState(1);
-  const [selected, setSelected] = useState(null);
+  const [company, setCompany] = useState("All");
 
-  const debouncedSearch = useDebounce(search, 300);
-  const filters = useMemo(
-    () => ({ search: debouncedSearch, difficulty, status }),
-    [debouncedSearch, difficulty, status]
-  );
+  // Data States
+  const [problems, setProblems] = useState([]);
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const { data: problems, loading } = useFetch(() => dsaService.getProblems(filters), [JSON.stringify(filters)]);
-  const { data: topicStats } = useFetch(() => dsaService.getTopicStats(), []);
+  // Modal States
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [selectedProblem, setSelectedProblem] = useState(null);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
-  const paged = (problems || []).slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const totalPages = Math.ceil((problems?.length || 0) / PAGE_SIZE);
+  // Fetch data
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [fetchedProblems, fetchedStats] = await Promise.all([
+        dsaService.getProblems({
+          search,
+          topic,
+          difficulty,
+          status,
+          company,
+        }),
+        dsaService.getDSAStats(),
+      ]);
 
-  const solvedCount = (problems || []).filter((p) => p.status === "Solved").length;
+      setProblems(fetchedProblems);
+      setStats(fetchedStats);
+    } catch (e) {
+      console.error("Error loading DSA tracker data:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [search, topic, difficulty, status, company]);
 
-  const columns = [
-    {
-      key: "title",
-      header: "Problem",
-      render: (row) => (
-        <div className="flex items-center gap-2.5">
-          {row.status === "Solved" ? (
-            <CheckCircle2 size={16} className="shrink-0 text-success" />
-          ) : (
-            <Circle size={16} className="shrink-0 text-text-muted" />
-          )}
-          <span className="font-medium text-text">{row.title}</span>
-        </div>
-      ),
-    },
-    { key: "topic", header: "Topic", render: (row) => <Badge>{row.topic}</Badge> },
-    {
-      key: "difficulty",
-      header: "Difficulty",
-      render: (row) => <Badge className={difficultyColor[row.difficulty]}>{row.difficulty}</Badge>,
-    },
-    {
-      key: "companies",
-      header: "Companies",
-      render: (row) => (
-        <div className="flex flex-wrap gap-1.5">
-          {row.companies.slice(0, 2).map((c) => (
-            <Badge key={c} variant="primary">{c}</Badge>
-          ))}
-        </div>
-      ),
-    },
-    { key: "status", header: "Status", render: (row) => <Badge className={statusColor[row.status]}>{row.status}</Badge> },
-    { key: "revisionDate", header: "Revision Date", render: (row) => formatDate(row.revisionDate) },
-  ];
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Handlers
+  const handleResetFilters = () => {
+    setSearch("");
+    setTopic("All");
+    setDifficulty("All");
+    setStatus("All");
+    setCompany("All");
+    setCurrentPage(1);
+  };
+
+  const handleAddProblem = async (problemData) => {
+    await dsaService.addProblem(problemData);
+    fetchData();
+  };
+
+  const handleUpdateProblem = async (id, updates) => {
+    await dsaService.updateProblem(id, updates);
+    fetchData();
+  };
+
+  const handleDeleteProblem = async (id) => {
+    if (window.confirm("Are you sure you want to delete this problem from tracker?")) {
+      await dsaService.deleteProblem(id);
+      fetchData();
+    }
+  };
+
+  const handleToggleSolve = async (id) => {
+    const target = problems.find((p) => p.id === id);
+    if (!target) return;
+    const nextStatus = target.status === "Solved" ? "Tracked" : "Solved";
+    await dsaService.updateProblem(id, { status: nextStatus });
+    fetchData();
+  };
+
+  const handleToggleBookmark = async (id) => {
+    await dsaService.toggleBookmark(id);
+    fetchData();
+  };
+
+  const handleMarkRevised = async (id) => {
+    await dsaService.markRevised(id);
+    fetchData();
+  };
+
+  const handleSelectTopicFromCard = (topicName) => {
+    setTopic(topicName);
+    setActiveTab("overview");
+    setCurrentPage(1);
+  };
+
+  const handleSelectCompanyFromCard = (companyName) => {
+    setCompany(companyName);
+    setActiveTab("overview");
+    setCurrentPage(1);
+  };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-text">DSA Tracker</h1>
-        <p className="mt-1 text-sm text-text-muted">Log, filter, and revise every problem you've attempted.</p>
-      </div>
+    <div className="w-full min-w-0 px-2 sm:px-4 py-4 space-y-6">
+      {/* 1. Header with Breadcrumbs, Tabs, Motivational Banner & Add Problem CTA */}
+      <DSAHeader
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onOpenAddModal={() => setAddModalOpen(true)}
+      />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard icon={CheckCircle2} label="Solved" value={solvedCount} color="success" />
-        <StatCard icon={Code2} label="Total Tracked" value={problems?.length ?? 0} color="primary" />
-        <StatCard icon={TrendingUp} label="This Week" value="12 solved" color="warning" />
-      </div>
-
-      <ChartCard title="Progress by Topic" subtitle="Solved vs total per topic">
-        <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={topicStats || []} margin={{ top: 6, right: 6, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#27272A" vertical={false} />
-            <XAxis dataKey="topic" stroke="#A1A1AA" fontSize={11} tickLine={false} axisLine={false} interval={0} angle={-20} textAnchor="end" height={60} />
-            <YAxis stroke="#A1A1AA" fontSize={12} tickLine={false} axisLine={false} />
-            <Tooltip
-              contentStyle={{ background: "#18181B", border: "1px solid #27272A", borderRadius: 8, fontSize: 12 }}
-            />
-            <Bar dataKey="solved" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="total" fill="#27272A" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </ChartCard>
-
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <Search value={search} onChange={setSearch} placeholder="Search problems..." className="flex-1" />
-        <Dropdown label="Difficulty" value={difficulty} onChange={(v) => { setDifficulty(v); setPage(1); }} options={["All", "Easy", "Medium", "Hard"]} className="sm:w-48" />
-        <Dropdown label="Status" value={status} onChange={(v) => { setStatus(v); setPage(1); }} options={["All", "Solved", "Attempted", "Not Started", "Revision"]} className="sm:w-48" />
-      </div>
-
-      {loading ? (
-        <SkeletonTable rows={6} />
+      {/* Main Tab Views */}
+      {activeTab === "topics" ? (
+        <TopicsView
+          topicStats={stats?.topicProgress || []}
+          onSelectTopic={handleSelectTopicFromCard}
+        />
+      ) : activeTab === "companies" ? (
+        <CompaniesView
+          companyDistribution={stats?.companyDistribution || []}
+          onSelectCompany={handleSelectCompanyFromCard}
+        />
+      ) : activeTab === "revision" ? (
+        <RevisionView
+          problems={problems}
+          onMarkRevised={handleMarkRevised}
+          onViewProblem={(p) => {
+            setSelectedProblem(p);
+            setViewModalOpen(true);
+          }}
+        />
+      ) : activeTab === "bookmarks" ? (
+        <BookmarksView
+          problems={problems}
+          onToggleBookmark={handleToggleBookmark}
+          onViewProblem={(p) => {
+            setSelectedProblem(p);
+            setViewModalOpen(true);
+          }}
+        />
       ) : (
-        <>
-          <Table columns={columns} data={paged} onRowClick={setSelected} />
-          <Pagination page={page} totalPages={totalPages} onChange={setPage} />
-        </>
+        /* Overview Tab (Default) matching DSATracker.png */
+        <div className="space-y-6">
+          {/* 2. Top Summary Stat Cards */}
+          <DSAStatCards stats={stats} />
+
+          {/* 3. Middle Section: Progress by Topic + Right Sidebar Analytics */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 min-w-0">
+            {/* Left: Progress by Topic Bar List (lg:col-span-7) */}
+            <div className="lg:col-span-7 min-w-0">
+              <ProgressByTopicCard
+                topicStats={stats?.topicProgress || []}
+                onSelectTopic={handleSelectTopicFromCard}
+              />
+            </div>
+
+            {/* Right: Topic Distribution Donut + Difficulty & Company Breakdown (lg:col-span-5) */}
+            <div className="lg:col-span-5 min-w-0">
+              <RightSidebarAnalytics stats={stats} />
+            </div>
+          </div>
+
+          {/* 4. Search and Filter Bar */}
+          <DSAFilterBar
+            search={search}
+            setSearch={(val) => {
+              setSearch(val);
+              setCurrentPage(1);
+            }}
+            topic={topic}
+            setTopic={(val) => {
+              setTopic(val);
+              setCurrentPage(1);
+            }}
+            difficulty={difficulty}
+            setDifficulty={(val) => {
+              setDifficulty(val);
+              setCurrentPage(1);
+            }}
+            status={status}
+            setStatus={(val) => {
+              setStatus(val);
+              setCurrentPage(1);
+            }}
+            company={company}
+            setCompany={(val) => {
+              setCompany(val);
+              setCurrentPage(1);
+            }}
+            onReset={handleResetFilters}
+          />
+
+          {/* 5. Problem Table */}
+          <DSATable
+            problems={problems}
+            totalCount={problems.length}
+            currentPage={currentPage}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onViewProblem={(p) => {
+              setSelectedProblem(p);
+              setViewModalOpen(true);
+            }}
+            onEditProblem={(p) => {
+              setSelectedProblem(p);
+              setEditModalOpen(true);
+            }}
+            onDeleteProblem={handleDeleteProblem}
+            onToggleSolve={handleToggleSolve}
+            onToggleBookmark={handleToggleBookmark}
+          />
+        </div>
       )}
 
-      <ProblemDrawer problem={selected} open={!!selected} onClose={() => setSelected(null)} />
+      {/* Add Problem Modal */}
+      <AddProblemModal
+        open={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+        onAddProblem={handleAddProblem}
+      />
+
+      {/* View Problem Modal */}
+      <ViewProblemModal
+        problem={selectedProblem}
+        open={viewModalOpen}
+        onClose={() => setViewModalOpen(false)}
+        onToggleSolve={handleToggleSolve}
+        onToggleBookmark={handleToggleBookmark}
+      />
+
+      {/* Edit Problem Modal */}
+      <EditProblemModal
+        problem={selectedProblem}
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        onUpdateProblem={handleUpdateProblem}
+      />
     </div>
   );
 }

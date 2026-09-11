@@ -1,109 +1,118 @@
-import {
-  PieChart, Pie, Cell, LineChart, Line, BarChart, Bar,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
-} from "recharts";
-import { ChartCard } from "../components/ui/Card";
-import Heatmap from "../components/charts/Heatmap";
-import { useFetch } from "../hooks/useFetch";
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import analyticsService from "../services/analyticsService";
-
-const tooltipStyle = { background: "#18181B", border: "1px solid #27272A", borderRadius: 8, fontSize: 12 };
+import AnalyticsHeader from "../components/analytics/AnalyticsHeader";
+import TopMetricCards from "../components/analytics/TopMetricCards";
+import ActivityOverviewCard from "../components/analytics/ActivityOverviewCard";
+import TopicStrengthCard from "../components/analytics/TopicStrengthCard";
+import StudyTimeAnalysisCard from "../components/analytics/StudyTimeAnalysisCard";
+import ConsistencyHeatmapCard from "../components/analytics/ConsistencyHeatmapCard";
+import AIInsightsCard from "../components/analytics/AIInsightsCard";
+import RecentActivityCard from "../components/analytics/RecentActivityCard";
+import GoalProgressCard from "../components/analytics/GoalProgressCard";
+import LeaderboardComparisonCard from "../components/analytics/LeaderboardComparisonCard";
 
 export default function Analytics() {
-  const { data: studyHours, loading: l1 } = useFetch(() => analyticsService.getStudyHoursTrend(), []);
-  const { data: topicPerf, loading: l2 } = useFetch(() => analyticsService.getTopicPerformance(), []);
-  const { data: revision, loading: l3 } = useFetch(() => analyticsService.getRevisionStats(), []);
-  const { data: difficulty, loading: l4 } = useFetch(() => analyticsService.getDifficultyBreakdown(), []);
-  const { data: progress, loading: l5 } = useFetch(() => analyticsService.getProgressOverTime(), []);
-  const { data: heatmap, loading: l6 } = useFetch(() => analyticsService.getHeatmap(), []);
+  const navigate = useNavigate();
 
-  const loading = l1 || l2 || l3 || l4 || l5 || l6;
+  // State
+  const [timeRange, setTimeRange] = useState("30d"); // "7d" | "30d" | "90d" | "year" | "all"
+  const [metrics, setMetrics] = useState(null);
+  const [activityOverview, setActivityOverview] = useState([]);
+  const [heatmapData, setHeatmapData] = useState([]);
+  const [insights, setInsights] = useState([]);
+  const [recentActivities, setRecentActivities] = useState([]);
+  const [goals, setGoals] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Load analytics data asynchronously based on timeRange
+  const fetchAnalytics = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [m, act, hm, ins, rec, g] = await Promise.all([
+        analyticsService.getOverviewMetrics(timeRange),
+        analyticsService.getActivityOverview(timeRange),
+        analyticsService.getHeatmapData(timeRange),
+        analyticsService.getAIInsights(),
+        analyticsService.getRecentActivity(),
+        analyticsService.getGoalProgress(),
+      ]);
+
+      setMetrics(m);
+      setActivityOverview(act);
+      setHeatmapData(hm);
+      setInsights(ins);
+      setRecentActivities(rec);
+      setGoals(g);
+    } catch (e) {
+      console.error("Failed to load analytics:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [timeRange]);
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [fetchAnalytics]);
+
+  const handleNavigateToCategory = (cat) => {
+    const routeMap = {
+      DSA: "/app/dsa",
+      Aptitude: "/app/aptitude",
+      Interview: "/app/interview",
+      Resume: "/app/resume",
+      Study: "/app/planner",
+    };
+    if (routeMap[cat]) navigate(routeMap[cat]);
+  };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-text">Analytics</h1>
-        <p className="mt-1 text-sm text-text-muted">Deep insights into where you're strong and where to focus.</p>
+    <div className="w-full min-w-0 px-2 sm:px-4 py-4 space-y-6">
+      {/* 1. Header with Breadcrumbs, Time Range Selector & Motivational Banner */}
+      <AnalyticsHeader timeRange={timeRange} setTimeRange={setTimeRange} />
+
+      {/* 2. Top Summary Metric Cards (6 compact cards) */}
+      <TopMetricCards metrics={metrics} />
+
+      {/* 3. Middle Section - Row 1: Activity Overview + Topic Strength vs Weakness */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 min-w-0">
+        <div className="lg:col-span-7 min-w-0">
+          <ActivityOverviewCard
+            data={activityOverview}
+            timeRange={timeRange}
+            setTimeRange={setTimeRange}
+          />
+        </div>
+        <div className="lg:col-span-5 min-w-0">
+          <TopicStrengthCard onNavigateToCategory={handleNavigateToCategory} />
+        </div>
       </div>
 
-      {loading ? (
-        <div className="h-96 animate-pulse rounded-2xl bg-bg-card" />
-      ) : (
-        <>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <ChartCard title="Study Hours Trend" subtitle="Hours studied per month">
-              <ResponsiveContainer width="100%" height={240}>
-                <LineChart data={studyHours} margin={{ top: 6, right: 6, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272A" vertical={false} />
-                  <XAxis dataKey="month" stroke="#A1A1AA" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#A1A1AA" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Line type="monotone" dataKey="hours" stroke="#3B82F6" strokeWidth={2.5} dot={{ fill: "#3B82F6", r: 4 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartCard>
+      {/* 4. Middle Section - Row 2: Study Time Analysis + Consistency Heatmap + AI Insights */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 min-w-0">
+        <div className="lg:col-span-4 min-w-0 flex">
+          <StudyTimeAnalysisCard totalStudyTime={metrics?.totalStudyTime || "24h 30m"} />
+        </div>
+        <div className="lg:col-span-4 min-w-0 flex">
+          <ConsistencyHeatmapCard heatmapData={heatmapData} />
+        </div>
+        <div className="lg:col-span-4 min-w-0 flex">
+          <AIInsightsCard insights={insights} />
+        </div>
+      </div>
 
-            <ChartCard title="Difficulty Breakdown" subtitle="DSA problems by difficulty">
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie data={difficulty} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={3}>
-                    {difficulty.map((d) => (
-                      <Cell key={d.name} fill={d.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 12, color: "#A1A1AA" }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <ChartCard title="Topic Performance" subtitle="Composite score across prep areas">
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={topicPerf} margin={{ top: 6, right: 6, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#27272A" vertical={false} />
-                  <XAxis dataKey="name" stroke="#A1A1AA" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#A1A1AA" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="value" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
-            <ChartCard title="Revision Statistics" subtitle="Current revision pipeline status">
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie data={revision} dataKey="value" nameKey="name" innerRadius={55} outerRadius={85} paddingAngle={3}>
-                    {revision.map((d) => (
-                      <Cell key={d.name} fill={d.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Legend wrapperStyle={{ fontSize: 12, color: "#A1A1AA" }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          </div>
-
-          <ChartCard title="Progress Over Time" subtitle="Cumulative problems solved by category">
-            <ResponsiveContainer width="100%" height={280}>
-              <LineChart data={progress} margin={{ top: 6, right: 6, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#27272A" vertical={false} />
-                <XAxis dataKey="week" stroke="#A1A1AA" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#A1A1AA" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Legend wrapperStyle={{ fontSize: 12, color: "#A1A1AA" }} />
-                <Line type="monotone" dataKey="dsa" name="DSA" stroke="#3B82F6" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="aptitude" name="Aptitude" stroke="#60A5FA" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="core" name="Core CS" stroke="#F59E0B" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </ChartCard>
-
-          <Heatmap data={heatmap} />
-        </>
-      )}
+      {/* 5. Bottom Section - Row 3: Recent Activity + Goal Progress + Leaderboard Comparison */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 min-w-0">
+        <div className="lg:col-span-4 min-w-0 flex">
+          <RecentActivityCard activities={recentActivities} />
+        </div>
+        <div className="lg:col-span-4 min-w-0 flex">
+          <GoalProgressCard goals={goals} />
+        </div>
+        <div className="lg:col-span-4 min-w-0 flex">
+          <LeaderboardComparisonCard percentile={metrics?.overallPercentile || 68} />
+        </div>
+      </div>
     </div>
   );
 }

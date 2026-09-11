@@ -14,6 +14,10 @@ export function AuthProvider({ children }) {
       setUser(JSON.parse(cachedUser));
     }
     setLoading(false);
+
+    const handleUnauthorized = () => setUser(null);
+    window.addEventListener("prepflow:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("prepflow:unauthorized", handleUnauthorized);
   }, []);
 
   const login = useCallback(async (credentials) => {

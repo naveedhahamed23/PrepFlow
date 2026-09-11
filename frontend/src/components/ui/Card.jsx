@@ -9,8 +9,10 @@ export default function Card({ children, className, hover = true, glass = false,
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.4, ease: "easeOut" }}
       className={cn(
-        "rounded-2xl border border-bg-border p-5",
-        glass ? "glass" : "bg-bg-card",
+        // Deep navy surface with blue-tinted border — matches reference card treatment
+        "rounded-xl border border-[#1E2D45] bg-[#0D1424]",
+        "shadow-[0_4px_24px_-4px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.04)]",
+        glass ? "glass" : "",
         hover && "card-hover",
         className
       )}
