@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+
+  <title>PrepFlow</title>
+
+  <link rel="stylesheet" href="popup.css" />
+</head>
+
+<body>
+
+  <div class="container">
+
+    <div class="header">
+      <div class="logo">PrepFlow</div>
+
+      <div class="status-dot"></div>
+    </div>
+  <div id="connectionSection" class="connection-section">
+
+    <div class="connection-header">
+        <span>PrepFlow</span>
+        <span id="connectionStatus" class="connection-status disconnected">
+            Not connected
+        </span>
+    </div>
+
+    <button id="connectButton" class="connect-button">
+        Connect to PrepFlow
+    </button>
+
+    <div id="connectionMessage" class="connection-message">
+        Connect your PrepFlow account to sync solved problems.
+    </div>
+
+</div>
+
+    <div id="problemSection">
+
+      <div class="label">
+        CURRENT PROBLEM
+      </div>
+
+      <div id="problemTitle" class="problem-title">
+        Loading...
+      </div>
+
+      <div id="difficulty" class="difficulty">
+        —
+      </div>
+
+
+      <div id="timer" class="timer">
+        00:00:00
+      </div>
+
+
+      <div id="status" class="status">
+        Detecting problem...
+      </div>
+
+
+      <div class="buttons">
+
+        <button id="pauseButton">
+          Pause
+        </button>
+
+        <button id="resumeButton" class="hidden">
+          Resume
+        </button>
+
+      </div>
+
+    </div>
+
+
+    <div id="notLeetCode" class="empty hidden">
+
+      <div class="empty-icon">
+        ⏱
+      </div>
+
+      <div>
+        Open a LeetCode problem
+      </div>
+
+      <small>
+        PrepFlow will automatically track your solving time.
+      </small>
+
+    </div>
+
+  </div>
+
+  <script src="popup.js"></script>
+
+</body>
+</html>

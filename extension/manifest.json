@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "PrepFlow",
+  "version": "1.0.0",
+  "description": "PrepFlow LeetCode tracker",
+
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+
+  "host_permissions": [
+    "https://leetcode.com/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://leetcode.com/problems/*"
+      ],
+      "js": [
+        "content.js"
+      ]
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup.html"
+  },
+
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:5173/*",
+      "http://127.0.0.1:5173/*"
+    ]
+  }
+}
