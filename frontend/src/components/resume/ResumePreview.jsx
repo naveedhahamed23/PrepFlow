@@ -102,11 +102,10 @@ function HeaderSection({ personalInfo, styles, template }) {
 export function ResumePreview({ data, hasResume, template = "modern" }) {
   if (!hasResume || !data) {
     return (
-      <div className="h-full flex flex-col items-center justify-start">
-        <div className="w-full max-w-[400px]">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-text">Resume Preview</h2>
-          </div>
+      <div className="w-full">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-bold text-text">Resume Preview</h2>
+        </div>
           <Card className="flex flex-col items-center justify-center text-center p-8 border-2 border-dashed border-bg-border/60 bg-bg-card/30 aspect-[1/1.2]">
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-6">
               <svg className="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -118,7 +117,6 @@ export function ResumePreview({ data, hasResume, template = "modern" }) {
               Upload your resume to analyze and preview it.
             </p>
           </Card>
-        </div>
       </div>
     );
   }

@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -16,11 +17,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+
 import com.prepflow.user.UserRepository;
 
 @RestController
 @RequestMapping("/api/dsa")
 public class DsaProblemController {
+
     private final DsaProblemRepository problems;
     private final UserRepository users;
 
@@ -37,81 +40,212 @@ public class DsaProblemController {
             @RequestParam(defaultValue = "All") String status,
             @RequestParam(defaultValue = "All") String topic,
             @RequestParam(defaultValue = "All") String company) {
+
         String query = search.trim().toLowerCase();
+
         return problems.findAllByUser_IdOrderByTitleAsc(userId).stream()
-                .filter(problem -> query.isEmpty() || problem.getTitle().toLowerCase().contains(query))
-                .filter(problem -> "All".equals(difficulty) || problem.getDifficulty().equals(difficulty))
-                .filter(problem -> "All".equals(status) || problem.getStatus().equals(status))
-                .filter(problem -> "All".equals(topic) || problem.getTopic().equals(topic))
-                .filter(problem -> "All".equals(company) || problem.getCompanies().contains(company))
+                .filter(problem -> query.isEmpty()
+                        || problem.getTitle().toLowerCase().contains(query))
+                .filter(problem -> "All".equals(difficulty)
+                        || problem.getDifficulty().equals(difficulty))
+                .filter(problem -> "All".equals(status)
+                        || problem.getStatus().equals(status))
+                .filter(problem -> "All".equals(topic)
+                        || problem.getTopic().equals(topic))
+                .filter(problem -> "All".equals(company)
+                        || problem.getCompanies().contains(company))
                 .map(ProblemResponse::from)
                 .toList();
     }
 
     @GetMapping("/problems/{id}")
-    public ProblemResponse get(@AuthenticationPrincipal String userId, @PathVariable String id) {
+    public ProblemResponse get(
+            @AuthenticationPrincipal String userId,
+            @PathVariable String id) {
+
         return ProblemResponse.from(find(id, userId));
     }
 
     @PostMapping("/problems")
     @ResponseStatus(HttpStatus.CREATED)
-    public ProblemResponse create(@AuthenticationPrincipal String userId, @RequestBody ProblemRequest request) {
+    public ProblemResponse create(
+            @AuthenticationPrincipal String userId,
+            @RequestBody ProblemRequest request) {
+
         DsaProblem problem = new DsaProblem();
         problem.setUser(users.getReferenceById(userId));
+
         apply(problem, request);
+
         return ProblemResponse.from(problems.save(problem));
     }
 
     @PutMapping("/problems/{id}")
-    public ProblemResponse update(@AuthenticationPrincipal String userId, @PathVariable String id, @RequestBody ProblemRequest request) {
+    public ProblemResponse update(
+            @AuthenticationPrincipal String userId,
+            @PathVariable String id,
+            @RequestBody ProblemRequest request) {
+
         DsaProblem problem = find(id, userId);
+
         apply(problem, request);
+
         return ProblemResponse.from(problems.save(problem));
     }
 
     @DeleteMapping("/problems/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@AuthenticationPrincipal String userId, @PathVariable String id) {
+    public void delete(
+            @AuthenticationPrincipal String userId,
+            @PathVariable String id) {
+
         problems.delete(find(id, userId));
     }
 
     @GetMapping("/stats/topics")
-    public List<TopicStat> topicStats(@AuthenticationPrincipal String userId) {
-        return problems.findAllByUser_IdOrderByTitleAsc(userId).stream()
-                .collect(java.util.stream.Collectors.groupingBy(DsaProblem::getTopic))
-                .entrySet().stream()
-                .map(entry -> new TopicStat(entry.getKey(), (int) entry.getValue().stream().filter(problem -> "Solved".equals(problem.getStatus())).count(), entry.getValue().size()))
+    public List<TopicStat> topicStats(
+            @AuthenticationPrincipal String userId) {
+
+        return problems.findAllByUser_IdOrderByTitleAsc(userId)
+                .stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                        DsaProblem::getTopic))
+                .entrySet()
+                .stream()
+                .map(entry -> new TopicStat(
+                        entry.getKey(),
+                        (int) entry.getValue()
+                                .stream()
+                                .filter(problem ->
+                                        "Solved".equals(problem.getStatus()))
+                                .count(),
+                        entry.getValue().size()))
                 .sorted(Comparator.comparing(TopicStat::topic))
                 .toList();
     }
 
+    /*
+     * Endpoint used by the PrepFlow browser extension when
+     * a LeetCode problem is accepted.
+     */
+    @PostMapping("/extension/solved")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ProblemResponse extensionSolved(
+            @AuthenticationPrincipal String userId,
+            @RequestBody ExtensionSolvedRequest request) {
+
+        DsaProblem problem = problems
+                .findByUser_IdAndUrl(userId, request.url())
+                .orElseGet(() -> {
+                    DsaProblem newProblem = new DsaProblem();
+                    newProblem.setUser(users.getReferenceById(userId));
+                    return newProblem;
+                });
+
+        problem.setTitle(request.title());
+        problem.setDifficulty(request.difficulty());
+        problem.setStatus("Solved");
+        problem.setTimeTaken(request.timeTaken());
+        problem.setSolvedOn(request.solvedOn());
+        problem.setUrl(request.url());
+
+        return ProblemResponse.from(problems.save(problem));
+    }
+
     private DsaProblem find(String id, String userId) {
-        return problems.findByIdAndUser_Id(id, userId).orElseThrow(() -> new IllegalArgumentException("Problem not found."));
+        return problems.findByIdAndUser_Id(id, userId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException("Problem not found."));
     }
 
     private void apply(DsaProblem problem, ProblemRequest request) {
-        if (request.title() != null) problem.setTitle(request.title());
-        if (request.topic() != null) problem.setTopic(request.topic());
-        if (request.difficulty() != null) problem.setDifficulty(request.difficulty());
-        if (request.status() != null) problem.setStatus(request.status());
-        if (request.companies() != null) problem.setCompanies(request.companies());
-        if (request.revisionDate() != null) problem.setRevisionDate(request.revisionDate());
-        if (request.solvedOn() != null) problem.setSolvedOn(request.solvedOn());
-        if (request.timeTaken() != null) problem.setTimeTaken(request.timeTaken());
-        if (request.notes() != null) problem.setNotes(request.notes());
-        if (request.url() != null) problem.setUrl(request.url());
+
+        if (request.title() != null)
+            problem.setTitle(request.title());
+
+        if (request.topic() != null)
+            problem.setTopic(request.topic());
+
+        if (request.difficulty() != null)
+            problem.setDifficulty(request.difficulty());
+
+        if (request.status() != null)
+            problem.setStatus(request.status());
+
+        if (request.companies() != null)
+            problem.setCompanies(request.companies());
+
+        if (request.revisionDate() != null)
+            problem.setRevisionDate(request.revisionDate());
+
+        if (request.solvedOn() != null)
+            problem.setSolvedOn(request.solvedOn());
+
+        if (request.timeTaken() != null)
+            problem.setTimeTaken(request.timeTaken());
+
+        if (request.notes() != null)
+            problem.setNotes(request.notes());
+
+        if (request.url() != null)
+            problem.setUrl(request.url());
     }
 
-    public record ProblemRequest(String title, String topic, String difficulty, String status, Set<String> companies,
-            LocalDate revisionDate, LocalDate solvedOn, Integer timeTaken, String notes, String url) {}
+    public record ProblemRequest(
+            String title,
+            String topic,
+            String difficulty,
+            String status,
+            Set<String> companies,
+            LocalDate revisionDate,
+            LocalDate solvedOn,
+            Integer timeTaken,
+            String notes,
+            String url) {
+    }
 
-    public record ProblemResponse(String id, String title, String topic, String difficulty, String status, Set<String> companies,
-            LocalDate revisionDate, LocalDate solvedOn, Integer timeTaken, String notes, String url) {
+    public record ExtensionSolvedRequest(
+            String platform,
+            String slug,
+            String title,
+            String difficulty,
+            Integer timeTaken,
+            LocalDate solvedOn,
+            String url) {
+    }
+
+    public record ProblemResponse(
+            String id,
+            String title,
+            String topic,
+            String difficulty,
+            String status,
+            Set<String> companies,
+            LocalDate revisionDate,
+            LocalDate solvedOn,
+            Integer timeTaken,
+            String notes,
+            String url) {
+
         static ProblemResponse from(DsaProblem problem) {
-            return new ProblemResponse(problem.getId(), problem.getTitle(), problem.getTopic(), problem.getDifficulty(), problem.getStatus(),
-                    problem.getCompanies(), problem.getRevisionDate(), problem.getSolvedOn(), problem.getTimeTaken(), problem.getNotes(), problem.getUrl());
+            return new ProblemResponse(
+                    problem.getId(),
+                    problem.getTitle(),
+                    problem.getTopic(),
+                    problem.getDifficulty(),
+                    problem.getStatus(),
+                    problem.getCompanies(),
+                    problem.getRevisionDate(),
+                    problem.getSolvedOn(),
+                    problem.getTimeTaken(),
+                    problem.getNotes(),
+                    problem.getUrl());
         }
     }
 
-    public record TopicStat(String topic, int solved, int total) {}
+    public record TopicStat(
+            String topic,
+            int solved,
+            int total) {
+    }
 }

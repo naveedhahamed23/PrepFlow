@@ -42,6 +42,51 @@ export function AuthProvider({ children }) {
     localStorage.removeItem("prepflow_user");
     setUser(null);
   }, []);
+  const connectExtension = useCallback(async () => {
+    const token = localStorage.getItem("prepflow_token");
+
+    if (!token) {
+        throw new Error("You must be logged in to connect the extension.");
+    }
+
+    if (!window.chrome?.runtime?.sendMessage) {
+        throw new Error("Chrome extension messaging is unavailable.");
+    }
+
+    return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(
+            "mimopmmkbmcjdpobamkkbbpbgcapnegf",
+            {
+                type: "PREPFLOW_CONNECT",
+                token
+            },
+            (response) => {
+
+                if (chrome.runtime.lastError) {
+                    reject(
+                        new Error(
+                            chrome.runtime.lastError.message ||
+                            "Could not connect to PrepFlow extension."
+                        )
+                    );
+                    return;
+                }
+
+                if (!response?.success) {
+                    reject(
+                        new Error(
+                            response?.error ||
+                            "Extension connection failed."
+                        )
+                    );
+                    return;
+                }
+
+                resolve(response);
+            }
+        );
+    });
+}, []);
 
   const value = {
     user,
@@ -50,6 +95,7 @@ export function AuthProvider({ children }) {
     login,
     register,
     logout,
+    connectExtension
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

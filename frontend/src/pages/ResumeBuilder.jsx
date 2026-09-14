@@ -290,40 +290,57 @@ export default function ResumeBuilder() {
     }
   };
 
-  // ── Layout ──────────────────────────────────────────────────────────────────
-
-  // Tabs that show side-by-side preview layout
   const showPreview = ["build", "templates"].includes(activeTab);
 
-  return (
-    <div className="flex flex-col h-[calc(100vh-theme(spacing.24))]">
-      {/* Page Header */}
-      <div className="mb-4">
-        <h1 className="text-2xl font-bold text-text">Resume Builder</h1>
-        <p className="mt-1 text-sm text-text-muted">Create, optimize, and land your dream job with AI.</p>
-      </div>
+return (
+  <div className="flex flex-col h-[calc(100vh-theme(spacing.24))] min-w-0">
 
-      <ResumeTabs activeTab={activeTab} setActiveTab={handleTabChange} />
+    {/* Header */}
+    <div className="mb-4 shrink-0">
+      <h1 className="text-2xl font-bold text-text">
+        Resume Builder
+      </h1>
 
-      {/* Main Content */}
-      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
-        {showPreview ? (
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_minmax(320px,400px)] gap-8 h-full max-w-[1680px] mx-auto">
-            {/* Left: Scrollable workspace */}
-            <div className="flex flex-col gap-0 lg:overflow-y-auto custom-scrollbar lg:pr-2">
+      <p className="mt-1 text-sm text-text-muted">
+        Create, optimize, and land your dream job with AI.
+      </p>
+    </div>
+
+    {/* Tabs */}
+    <div className="shrink-0">
+      <ResumeTabs
+        activeTab={activeTab}
+        setActiveTab={handleTabChange}
+      />
+    </div>
+
+    {/* Main Content */}
+    <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
+
+      {showPreview ? (
+        <div className="w-full max-w-[1180px] mx-auto pb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.65fr)_minmax(360px,0.9fr)] gap-8 items-start">
+            <div className="w-full min-w-0">
               {renderTabContent()}
             </div>
-            {/* Right: Sticky preview */}
-            <div className="lg:h-full lg:overflow-hidden">
-              <ResumePreview data={resumeData} hasResume={hasResume} template={selectedTemplate} />
+
+            <div className="w-full min-w-0">
+              <ResumePreview
+                data={resumeData}
+                hasResume={hasResume}
+                template={selectedTemplate}
+              />
             </div>
           </div>
-        ) : (
-          <div className="max-w-[1100px] mx-auto">
-            {renderTabContent()}
-          </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="w-full max-w-[1100px] mx-auto pb-8">
+          {renderTabContent()}
+        </div>
+      )}
+
     </div>
-  );
+
+  </div>
+);
 }

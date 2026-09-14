@@ -1,8 +1,9 @@
+
 import { Routes, Route, Navigate } from "react-router-dom";
 import PublicLayout from "./layouts/PublicLayout";
 import AppLayout from "./layouts/AppLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
-
+import ExtensionConnect from "./pages/ExtensionConnect";
 import Landing from "./pages/Landing";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
@@ -24,6 +25,7 @@ import NotFound from "./pages/NotFound";
 
 export default function App() {
   return (
+    
     <Routes>
       {/* Public marketing site */}
       <Route element={<PublicLayout />}>
@@ -39,6 +41,7 @@ export default function App() {
       {/* Protected app (sidebar + topbar) */}
       <Route element={<ProtectedRoute />}>
         <Route path="/app" element={<AppLayout />}>
+        <Route path="extension-connect" element={<ExtensionConnect />} />
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="dsa" element={<DSATracker />} />
@@ -56,5 +59,6 @@ export default function App() {
 
       <Route path="*" element={<NotFound />} />
     </Routes>
+    
   );
 }
