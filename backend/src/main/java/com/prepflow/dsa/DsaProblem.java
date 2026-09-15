@@ -49,6 +49,8 @@ public class DsaProblem {
     private Integer timeTaken;
     private String notes;
     private String url;
+    @Column(nullable = false)
+private boolean bookmarked = false;
 
     public String getId() { return id; }
     public User getUser() { return user; }
@@ -73,4 +75,11 @@ public class DsaProblem {
     public void setNotes(String notes) { this.notes = notes; }
     public String getUrl() { return url; }
     public void setUrl(String url) { this.url = url; }
+    public boolean isBookmarked() {
+    return bookmarked;
+}
+
+public void setBookmarked(boolean bookmarked) {
+    this.bookmarked = bookmarked;
+}
 }

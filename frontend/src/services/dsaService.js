@@ -1,261 +1,231 @@
-import {
-  INITIAL_DSA_PROBLEMS,
-  generateFullProblemsList,
-  TOPICS_LIST,
-  COMPANIES_LIST,
-} from "../data/dsaProblemsData";
+const API_BASE_URL = "http://localhost:8081/api/dsa";
 
-const STORAGE_KEY = "prepflow_dsa_problems_v1";
+function getToken() {
+  return localStorage.getItem("prepflow_token");
+}
 
-/**
- * Service Layer for DSA Tracker.
- * Manages problems, derived statistics, filters, bookmarks, and revision items.
- * Prepared for future Spring Boot REST endpoints & LeetCode browser extension sync:
- * GET /api/dsa/problems
- * POST /api/dsa/problems
- * PUT /api/dsa/problems/{id}
- * DELETE /api/dsa/problems/{id}
- */
+async function request(endpoint, options = {}) {
+  const token = getToken();
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+
+    try {
+      const error = await response.json();
+      message = error.message || error.error || message;
+    } catch {
+      // Response may not contain JSON.
+    }
+
+    throw new Error(message);
+  }
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  return response.json();
+}
+
+function mapProblem(problem) {
+  return {
+    ...problem,
+
+    // Backend → frontend naming
+    company:
+      problem.companies?.length > 0
+        ? problem.companies[0]
+        : "Uncategorized",
+
+    solvedAt: problem.solvedOn || null,
+
+    revisionDueAt: problem.revisionDate || null,
+
+    bookmarked: Boolean(problem.bookmarked),
+  };
+}
+
 export const dsaService = {
-  getProblemsData: () => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {
-      console.error("Error reading DSA problems from storage:", e);
-    }
-    const initialList = generateFullProblemsList();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(initialList));
-    return initialList;
-  },
-
-  saveProblemsData: (problems) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(problems));
-    } catch (e) {
-      console.error("Error saving DSA problems:", e);
-    }
-  },
-
   getProblems: async (filters = {}) => {
-    await new Promise((res) => setTimeout(res, 80));
-    const allProblems = dsaService.getProblemsData();
+    const params = new URLSearchParams();
 
-    let filtered = [...allProblems];
-
-    if (filters.search && filters.search.trim()) {
-      const q = filters.search.toLowerCase().trim();
-      filtered = filtered.filter(
-        (p) =>
-          p.title.toLowerCase().includes(q) ||
-          p.topic.toLowerCase().includes(q) ||
-          p.company.toLowerCase().includes(q) ||
-          p.difficulty.toLowerCase().includes(q) ||
-          p.slug.toLowerCase().includes(q)
-      );
+    if (filters.search) {
+      params.set("search", filters.search);
     }
 
     if (filters.topic && filters.topic !== "All") {
-      filtered = filtered.filter((p) => p.topic === filters.topic);
+      params.set("topic", filters.topic);
     }
 
     if (filters.difficulty && filters.difficulty !== "All") {
-      filtered = filtered.filter((p) => p.difficulty === filters.difficulty);
+      params.set("difficulty", filters.difficulty);
     }
 
-    if (filters.status && filters.status !== "All") {
-      if (filters.status === "Revision Pending") {
-        filtered = filtered.filter(
-          (p) =>
-            p.revisionDueAt &&
-            new Date(p.revisionDueAt) <= new Date("2026-09-11")
-        );
-      } else {
-        filtered = filtered.filter((p) => p.status === filters.status);
-      }
+    if (
+      filters.status &&
+      filters.status !== "All" &&
+      filters.status !== "Revision Pending"
+    ) {
+      params.set("status", filters.status);
     }
 
     if (filters.company && filters.company !== "All") {
-      filtered = filtered.filter((p) => p.company === filters.company);
+      params.set("company", filters.company);
     }
 
-    if (filters.bookmarkedOnly) {
-      filtered = filtered.filter((p) => p.bookmarked);
-    }
+    const query = params.toString();
 
-    if (filters.revisionOnly) {
-      filtered = filtered.filter(
-        (p) =>
-          p.revisionDueAt &&
-          new Date(p.revisionDueAt) <= new Date("2026-09-11T23:59:59")
+    const data = await request(
+      `/problems${query ? `?${query}` : ""}`
+    );
+
+    let problems = data.map(mapProblem);
+
+    // These filters are not currently handled by the backend.
+    if (filters.status === "Revision Pending" || filters.revisionOnly) {
+      const today = new Date();
+
+      problems = problems.filter(
+        (problem) =>
+          problem.revisionDueAt &&
+          new Date(problem.revisionDueAt) <= today
       );
     }
 
-    return filtered;
+    if (filters.bookmarkedOnly) {
+      problems = problems.filter((problem) => problem.bookmarked);
+    }
+
+    return problems;
   },
 
   getDSAStats: async () => {
-    await new Promise((res) => setTimeout(res, 60));
-    const problems = dsaService.getProblemsData();
-
-    const totalTracked = problems.length;
-    const solvedList = problems.filter((p) => p.status === "Solved");
-    const solvedCount = solvedList.length;
-
-    // This week (solved in last 7 days)
-    const thisWeekCount = solvedList.filter((p) => {
-      if (!p.solvedAt) return false;
-      const solvedDate = new Date(p.solvedAt);
-      const today = new Date("2026-09-11");
-      const diffDays = (today - solvedDate) / (1000 * 60 * 60 * 24);
-      return diffDays <= 7 && diffDays >= 0;
-    }).length;
-
-    // Revision pending (due today or earlier)
-    const revisionPendingCount = problems.filter(
-      (p) =>
-        p.revisionDueAt &&
-        new Date(p.revisionDueAt) <= new Date("2026-09-11T23:59:59")
-    ).length;
-
-    // Topic progress
-    const topicProgress = TOPICS_LIST.map((topicName) => {
-      const topicProblems = problems.filter((p) => p.topic === topicName);
-      const total = topicProblems.length || 1;
-      const solved = topicProblems.filter((p) => p.status === "Solved").length;
-      const percentage = Math.round((solved / total) * 100);
-      return {
-        topic: topicName,
-        solved,
-        total,
-        percentage,
-      };
-    });
-
-    // Difficulty breakdown
-    const easyCount = solvedList.filter((p) => p.difficulty === "Easy").length;
-    const mediumCount = solvedList.filter((p) => p.difficulty === "Medium").length;
-    const hardCount = solvedList.filter((p) => p.difficulty === "Hard").length;
-
-    // Company distribution
-    const companyDistribution = COMPANIES_LIST.map((comp) => {
-      const count = solvedList.filter((p) => p.company === comp).length;
-      return { company: comp, count };
-    });
+    const data = await request("/stats");
 
     return {
-      totalTracked,
-      solvedCount,
-      thisWeekCount,
-      revisionPendingCount,
-      topicProgress,
-      difficultyBreakdown: {
-        easy: easyCount,
-        medium: mediumCount,
-        hard: hardCount,
-      },
-      companyDistribution,
+      ...data,
+
+      topicProgress: (data.topicProgress || []).map((item) => ({
+        ...item,
+        percentage:
+          item.total > 0
+            ? Math.round((item.solved / item.total) * 100)
+            : 0,
+      })),
+
+      companyDistribution: data.companyDistribution || [],
     };
   },
 
   addProblem: async (problemData) => {
-    await new Promise((res) => setTimeout(res, 120));
-    const problems = dsaService.getProblemsData();
-
-    // Check for duplicate platform + externalProblemId
-    const platform = problemData.platform || "leetcode";
-    const externalId = problemData.externalProblemId || String(Date.now());
-
-    const duplicate = problems.find(
-      (p) => p.platform === platform && p.externalProblemId === externalId
-    );
-
-    if (duplicate) {
-      throw new Error(`Problem #${externalId} on ${platform} is already tracked.`);
-    }
-
-    const newProblem = {
-      id: `p-${Date.now()}`,
-      userId: "user-current",
-      platform,
-      externalProblemId: externalId,
-      slug: problemData.slug || problemData.title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+    const payload = {
       title: problemData.title,
-      topic: problemData.topic || "Arrays",
+      topic: problemData.topic || "Uncategorized",
       difficulty: problemData.difficulty || "Easy",
-      company: problemData.company || "LeetCode",
       status: problemData.status || "Tracked",
-      bookmarked: !!problemData.bookmarked,
-      addedAt: new Date().toISOString().split("T")[0],
-      solvedAt: problemData.status === "Solved" ? new Date().toISOString().split("T")[0] : null,
-      revisionDueAt: problemData.revisionDueAt || null,
+      companies: problemData.company
+        ? [problemData.company]
+        : [],
+      revisionDate: problemData.revisionDueAt || null,
+      solvedOn: problemData.solvedAt || null,
+      timeTaken: problemData.timeTaken || null,
       notes: problemData.notes || "",
+      url: problemData.url || null,
+      bookmarked: Boolean(problemData.bookmarked),
     };
 
-    const updated = [newProblem, ...problems];
-    dsaService.saveProblemsData(updated);
-    return { problems: updated, newProblem };
+    const created = await request("/problems", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+
+    return {
+      problems: [mapProblem(created)],
+      newProblem: mapProblem(created),
+    };
   },
 
   updateProblem: async (id, updates) => {
-    await new Promise((res) => setTimeout(res, 100));
-    const problems = dsaService.getProblemsData();
+    const payload = {
+      title: updates.title,
+      topic: updates.topic,
+      difficulty: updates.difficulty,
+      status: updates.status,
+      companies: updates.company
+        ? [updates.company]
+        : updates.companies,
+      revisionDate:
+        updates.revisionDueAt !== undefined
+          ? updates.revisionDueAt
+          : updates.revisionDate,
+      solvedOn:
+        updates.solvedAt !== undefined
+          ? updates.solvedAt
+          : updates.solvedOn,
+      timeTaken: updates.timeTaken,
+      notes: updates.notes,
+      url: updates.url,
+      bookmarked: updates.bookmarked,
+    };
 
-    const updated = problems.map((p) => {
-      if (p.id === id) {
-        const nextStatus = updates.status !== undefined ? updates.status : p.status;
-        const newlySolved = p.status !== "Solved" && nextStatus === "Solved";
-
-        return {
-          ...p,
-          ...updates,
-          status: nextStatus,
-          solvedAt: newlySolved
-            ? new Date().toISOString().split("T")[0]
-            : p.solvedAt,
-        };
+    // Remove undefined fields.
+    Object.keys(payload).forEach((key) => {
+      if (payload[key] === undefined) {
+        delete payload[key];
       }
-      return p;
     });
 
-    dsaService.saveProblemsData(updated);
-    return updated;
+    const updated = await request(`/problems/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+
+    return mapProblem(updated);
   },
 
   deleteProblem: async (id) => {
-    await new Promise((res) => setTimeout(res, 100));
-    const problems = dsaService.getProblemsData();
-    const updated = problems.filter((p) => p.id !== id);
-    dsaService.saveProblemsData(updated);
-    return updated;
+    await request(`/problems/${id}`, {
+      method: "DELETE",
+    });
+
+    return true;
   },
 
   toggleBookmark: async (id) => {
-    const problems = dsaService.getProblemsData();
-    const updated = problems.map((p) =>
-      p.id === id ? { ...p, bookmarked: !p.bookmarked } : p
-    );
-    dsaService.saveProblemsData(updated);
-    return updated;
+    const problems = await dsaService.getProblems();
+
+    const target = problems.find((problem) => problem.id === id);
+
+    if (!target) {
+      throw new Error("Problem not found.");
+    }
+
+    return dsaService.updateProblem(id, {
+      bookmarked: !target.bookmarked,
+    });
   },
 
   markRevised: async (id) => {
-    const problems = dsaService.getProblemsData();
     const nextRevisionDate = new Date();
-    nextRevisionDate.setDate(nextRevisionDate.getDate() + 14); // 2 weeks later
-
-    const updated = problems.map((p) =>
-      p.id === id
-        ? {
-            ...p,
-            status: "Solved",
-            lastRevisedAt: new Date().toISOString().split("T")[0],
-            revisionDueAt: nextRevisionDate.toISOString().split("T")[0],
-          }
-        : p
+    nextRevisionDate.setDate(
+      nextRevisionDate.getDate() + 14
     );
-    dsaService.saveProblemsData(updated);
-    return updated;
+
+    return dsaService.updateProblem(id, {
+      status: "Solved",
+      revisionDueAt: nextRevisionDate
+        .toISOString()
+        .split("T")[0],
+    });
   },
 };
 
