@@ -3,6 +3,8 @@ package com.prepflow.dashboard;
 import com.prepflow.activity.Activity;
 import com.prepflow.activity.ActivityRepository;
 import com.prepflow.activity.ActivityType;
+import com.prepflow.dsa.DsaProblem;
+import com.prepflow.dsa.DsaProblemRepository;
 import com.prepflow.planner.StudyTask;
 import com.prepflow.planner.StudyTaskRepository;
 import com.prepflow.user.User;
@@ -25,27 +27,36 @@ public class DashboardService {
     private final UserRepository users;
     private final ActivityRepository activities;
     private final StudyTaskRepository tasks;
+    private final DsaProblemRepository dsaProblems;
 
     public DashboardService() {
         this.users = null;
         this.activities = null;
         this.tasks = null;
+        this.dsaProblems = null;
     }
 
     @Autowired
-    public DashboardService(UserRepository users, ActivityRepository activities, StudyTaskRepository tasks) {
+    public DashboardService(UserRepository users, ActivityRepository activities, StudyTaskRepository tasks, DsaProblemRepository dsaProblems) {
         this.users = users;
         this.activities = activities;
         this.tasks = tasks;
+        this.dsaProblems = dsaProblems;
     }
 
     public DashboardResponse buildDashboard(String userId) {
         User user = users.findById(userId).orElseThrow(() -> new IllegalArgumentException("User not found."));
         List<Activity> userActivities = activities.findByUser_IdOrderByCreatedAtDesc(userId);
         List<StudyTask> userTasks = tasks.findAllByUser_Id(userId);
+        List<DsaProblem> trackedProblems = dsaProblems.findAllByUser_IdOrderByTitleAsc(userId);
         LocalDate today = LocalDate.now();
 
-        long dsaSolved = count(userActivities, ActivityType.DSA_SOLVED);
+        long dsaSolved = trackedProblems.stream().filter(problem -> "Solved".equals(problem.getStatus())).count();
+        long revisionPending = trackedProblems.stream().filter(problem -> problem.getRevisionDate() != null && !problem.getRevisionDate().isAfter(today)).count();
+        long dsaSolvedThisWeek = trackedProblems.stream()
+                .filter(problem -> "Solved".equals(problem.getStatus()))
+                .filter(problem -> problem.getSolvedOn() != null && !problem.getSolvedOn().isBefore(today.minusDays(6)) && !problem.getSolvedOn().isAfter(today))
+                .count();
         long interviews = count(userActivities, ActivityType.MOCK_INTERVIEW_COMPLETED);
         List<StudyTask> todayTasks = userTasks.stream().filter(task -> today.equals(task.getDueDate())).toList();
         long studyMinutes = userTasks.stream().filter(StudyTask::isDone)
@@ -55,13 +66,14 @@ public class DashboardService {
 
         return new DashboardResponse(
                 user.getName(), dsaSolved, studyMinutes, Math.max(0, user.getStreak()), user.getXp() == null ? 0 : user.getXp(),
-                interviews, averageScore(userActivities), taskProgress, sectionProgress(userActivities),
+                interviews, averageScore(userActivities), taskProgress, sectionProgress(userActivities, dsaSolved),
                 activityPoints(userActivities, today.minusDays(6), today), activityPoints(userActivities, today.minusDays(29), today),
                 todayTasks.stream().map(this::mapTask).toList(),
                 userActivities.stream().limit(8).map(this::mapActivity).toList(),
                 userTasks.stream().filter(task -> task.getDueDate() != null && task.getDueDate().isAfter(today))
                         .sorted(Comparator.comparing(StudyTask::getDueDate)).limit(8).map(this::mapTask).toList(),
-                weakAreas(userActivities, todayTasks)
+                weakAreas(userActivities, todayTasks, dsaSolved), trackedProblems.size(), revisionPending, dsaSolvedThisWeek,
+                user.getLevel() == null ? 1 : user.getLevel()
         );
     }
 
@@ -77,7 +89,7 @@ public class DashboardService {
                 Math.max(0, user.getStreak()), user.getXp() == null ? 0 : user.getXp(), interviews,
                 averageScore(userActivities), progress, sectionProgress(userActivities), List.of(), List.of(),
                 todayTasks.stream().map(this::mapTask).toList(), userActivities.stream().limit(8).map(this::mapActivity).toList(), List.of(),
-                weakAreas(userActivities, todayTasks));
+                weakAreas(userActivities, todayTasks, dsaSolved), dsaSolved, 0, 0, user.getLevel() == null ? 1 : user.getLevel());
     }
 
     private long count(List<Activity> userActivities, ActivityType type) {
@@ -85,8 +97,12 @@ public class DashboardService {
     }
 
     private List<DashboardResponse.SectionProgress> sectionProgress(List<Activity> userActivities) {
+        return sectionProgress(userActivities, count(userActivities, ActivityType.DSA_SOLVED));
+    }
+
+    private List<DashboardResponse.SectionProgress> sectionProgress(List<Activity> userActivities, long dsaSolved) {
         return List.of(
-                section("DSA", userActivities, ActivityType.DSA_SOLVED),
+                new DashboardResponse.SectionProgress("DSA", null, dsaSolved),
                 section("Aptitude", userActivities, ActivityType.APTITUDE_COMPLETED),
                 section("Interviews", userActivities, ActivityType.MOCK_INTERVIEW_COMPLETED),
                 section("Resume", userActivities, ActivityType.RESUME_ANALYZED),
@@ -102,9 +118,14 @@ public class DashboardService {
         List<DashboardResponse.ActivityPoint> points = new ArrayList<>();
         for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
             LocalDate pointDate = date;
-            long count = userActivities.stream().filter(activity -> activity.getCreatedAt() != null
-                && activity.getCreatedAt().atZone(ZoneOffset.UTC).toLocalDate().equals(pointDate)).count();
-            points.add(new DashboardResponse.ActivityPoint(date.toString(), count));
+            List<Activity> daily = userActivities.stream().filter(activity -> activity.getCreatedAt() != null
+                && activity.getCreatedAt().atZone(ZoneOffset.UTC).toLocalDate().equals(pointDate)).toList();
+            long dsa = count(daily, ActivityType.DSA_SOLVED);
+            long aptitude = count(daily, ActivityType.APTITUDE_COMPLETED);
+            long interview = count(daily, ActivityType.MOCK_INTERVIEW_COMPLETED);
+            long study = count(daily, ActivityType.STUDY_TASK_COMPLETED) + count(daily, ActivityType.LEARNING_SESSION_COMPLETED);
+            long others = daily.size() - dsa - aptitude - interview - study;
+            points.add(new DashboardResponse.ActivityPoint(date.toString(), daily.size(), dsa, aptitude, interview, study, others));
         }
         return points;
     }
@@ -131,9 +152,9 @@ public class DashboardService {
                 activity.getCreatedAt() == null ? null : activity.getCreatedAt().toString());
     }
 
-    private List<String> weakAreas(List<Activity> userActivities, List<StudyTask> todayTasks) {
+    private List<String> weakAreas(List<Activity> userActivities, List<StudyTask> todayTasks, long dsaSolved) {
         List<String> areas = new ArrayList<>();
-        if (count(userActivities, ActivityType.DSA_SOLVED) == 0) areas.add("DSA");
+        if (dsaSolved == 0) areas.add("DSA");
         if (count(userActivities, ActivityType.APTITUDE_COMPLETED) == 0) areas.add("Aptitude");
         if (todayTasks.isEmpty()) areas.add("Study Planner");
         return areas;

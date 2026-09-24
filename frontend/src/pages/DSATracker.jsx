@@ -13,6 +13,7 @@ import TopicsView from "../components/dsa/TopicsView";
 import CompaniesView from "../components/dsa/CompaniesView";
 import RevisionView from "../components/dsa/RevisionView";
 import BookmarksView from "../components/dsa/BookmarksView";
+import CatalogView from "../components/dsa/CatalogView";
 
 export default function DSATracker() {
   // Navigation & View State
@@ -31,6 +32,12 @@ export default function DSATracker() {
   const [problems, setProblems] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [catalog, setCatalog] = useState([]);
+  const [catalogProgress, setCatalogProgress] = useState([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   // Modal States
   const [addModalOpen, setAddModalOpen] = useState(false);
@@ -41,6 +48,7 @@ export default function DSATracker() {
   // Fetch data
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [fetchedProblems, fetchedStats] = await Promise.all([
         dsaService.getProblems({
@@ -57,6 +65,7 @@ export default function DSATracker() {
       setStats(fetchedStats);
     } catch (e) {
       console.error("Error loading DSA tracker data:", e);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -65,6 +74,28 @@ export default function DSATracker() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const fetchCatalog = useCallback(async () => {
+    setCatalogLoading(true);
+    setCatalogError(false);
+    try {
+      const [catalogProblems, userProgress] = await Promise.all([
+        dsaService.getCatalog(),
+        dsaService.getProblems(),
+      ]);
+      setCatalog(catalogProblems);
+      setCatalogProgress(userProgress);
+    } catch (e) {
+      console.error("Error loading DSA catalog:", e);
+      setCatalogError(true);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "catalog") fetchCatalog();
+  }, [activeTab, fetchCatalog]);
 
   // Handlers
   const handleResetFilters = () => {
@@ -77,8 +108,24 @@ export default function DSATracker() {
   };
 
   const handleAddProblem = async (problemData) => {
-    await dsaService.addProblem(problemData);
-    fetchData();
+    try {
+      setActionError("");
+      await dsaService.addProblem(problemData);
+      await fetchData();
+    } catch (e) {
+      setActionError(e.message || "Unable to add the problem.");
+      throw e;
+    }
+  };
+
+  const handleTrackCatalogProblem = async (problem) => {
+    try {
+      setActionError("");
+      await dsaService.trackCatalogProblem(problem);
+      await Promise.all([fetchData(), fetchCatalog()]);
+    } catch (e) {
+      setActionError(e.message || "Unable to track the problem.");
+    }
   };
 
   const handleUpdateProblem = async (id, updates) => {
@@ -97,7 +144,10 @@ export default function DSATracker() {
     const target = problems.find((p) => p.id === id);
     if (!target) return;
     const nextStatus = target.status === "Solved" ? "Tracked" : "Solved";
-    await dsaService.updateProblem(id, { status: nextStatus });
+    await dsaService.updateProblem(id, {
+      status: nextStatus,
+      ...(nextStatus === "Solved" ? { solvedAt: new Date().toISOString().slice(0, 10) } : {}),
+    });
     fetchData();
   };
 
@@ -132,8 +182,14 @@ export default function DSATracker() {
         onOpenAddModal={() => setAddModalOpen(true)}
       />
 
-      {/* Main Tab Views */}
-      {activeTab === "topics" ? (
+      {actionError && <p role="alert" className="rounded-xl border border-danger/30 bg-danger/5 p-3 text-sm text-danger">{actionError}</p>}
+      {loadError && <p role="alert" className="rounded-xl border border-danger/30 bg-danger/5 p-3 text-sm text-danger">Unable to load your DSA progress. Please try again.</p>}
+      {loading && activeTab !== "catalog" && <p aria-live="polite" className="text-xs text-text-muted">Loading your DSA progress...</p>}
+
+      {activeTab === "catalog" ? (
+        <CatalogView catalog={catalog} progress={catalogProgress} loading={catalogLoading} error={catalogError} onTrack={handleTrackCatalogProblem} />
+      ) : (
+      activeTab === "topics" ? (
         <TopicsView
           topicStats={stats?.topicProgress || []}
           onSelectTopic={handleSelectTopicFromCard}
@@ -233,6 +289,7 @@ export default function DSATracker() {
             onToggleBookmark={handleToggleBookmark}
           />
         </div>
+      )
       )}
 
       {/* Add Problem Modal */}

@@ -14,7 +14,7 @@ export default function Dashboard() {
   const { data, loading, error } = useFetch(() => dashboardService.getDashboard(), []);
 
   if (loading) return <div className="space-y-6"><SkeletonCard /><SkeletonCard /><SkeletonCard /></div>;
-  if (error) return <div className="rounded-xl border border-danger/30 bg-danger/5 p-6 text-sm text-danger">Your session expired. Please log in again.</div>;
+  if (error) return <div role="alert" className="rounded-xl border border-danger/30 bg-danger/5 p-6 text-sm text-danger">Unable to load your dashboard. Please try again.</div>;
 
   return (
     <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
@@ -64,7 +64,7 @@ export default function Dashboard() {
           rank={data.globalRank} 
         />
         <TodaysProgress data={data.todaysProgress} />
-        <NextBestAction />
+        <NextBestAction weakAreas={data.weakAreas} />
         <UpcomingGoals goals={data.upcomingGoals} />
         <PromoCard />
       </div>

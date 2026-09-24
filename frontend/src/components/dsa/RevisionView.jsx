@@ -3,7 +3,7 @@ import Button from "../ui/Button";
 
 export default function RevisionView({ problems = [], onMarkRevised, onViewProblem }) {
   const revisionDueProblems = problems.filter(
-    (p) => p.revisionDueAt && new Date(p.revisionDueAt) <= new Date("2026-09-11T23:59:59")
+    (p) => p.revisionDueAt && new Date(`${p.revisionDueAt}T00:00:00`) <= new Date()
   );
 
   return (

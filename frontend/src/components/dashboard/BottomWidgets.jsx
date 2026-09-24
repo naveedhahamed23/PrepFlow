@@ -60,7 +60,7 @@ export function RecentActivityList({ activities }) {
         </button>
       </div>
       <div className="space-y-3">
-        {activities.map(activity => {
+        {activities.length ? activities.map(activity => {
           const Icon = icons[activity.icon] || Code2;
           return (
             <div key={activity.id} className="flex items-center gap-3">
@@ -71,7 +71,7 @@ export function RecentActivityList({ activities }) {
               <p className="text-[9px] text-[#4A6080] shrink-0 whitespace-nowrap">{activity.time}</p>
             </div>
           );
-        })}
+        }) : <p className="text-xs text-[#7B91B0]">No recent activity recorded yet.</p>}
       </div>
     </div>
   );
@@ -90,7 +90,7 @@ export function StrengthsWeaknesses({ strengths, areasToImprove }) {
           <h3 className="text-sm font-semibold text-[#F0F4FF]">Your Strengths</h3>
         </div>
         <div className="space-y-3">
-          {strengths.map((item, idx) => (
+          {strengths.length ? strengths.map((item, idx) => (
             <div key={item.name} className="flex items-center gap-2">
               <div className="flex h-5 w-5 items-center justify-center rounded bg-[#22C55E]/10 shrink-0">
                 <div className="h-1.5 w-1.5 rounded-full bg-[#22C55E]" />
@@ -110,7 +110,7 @@ export function StrengthsWeaknesses({ strengths, areasToImprove }) {
                 </div>
               </div>
             </div>
-          ))}
+          )) : <p className="text-xs text-[#7B91B0]">Strengths will appear as topic progress is recorded.</p>}
         </div>
       </div>
 
@@ -123,7 +123,7 @@ export function StrengthsWeaknesses({ strengths, areasToImprove }) {
           <h3 className="text-sm font-semibold text-[#F0F4FF]">Areas to Improve</h3>
         </div>
         <div className="space-y-3">
-          {areasToImprove.map((item, idx) => (
+          {areasToImprove.length ? areasToImprove.map((item, idx) => (
             <div key={item.name} className="flex items-center gap-2">
               <div className="flex h-5 w-5 items-center justify-center rounded bg-[#EF4444]/10 shrink-0">
                 <div className="h-1.5 w-1.5 rounded-full bg-[#EF4444]" />
@@ -131,19 +131,19 @@ export function StrengthsWeaknesses({ strengths, areasToImprove }) {
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-[10px] text-[#7B91B0] truncate pr-2">{item.name}</span>
-                  <span className="text-[10px] font-semibold text-[#EF4444]">{item.value}%</span>
+                  <span className="text-[10px] font-semibold text-[#EF4444]">{item.value == null ? "Review" : `${item.value}%`}</span>
                 </div>
                 <div className="h-1 overflow-hidden rounded-full bg-[#1E2D45]">
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${item.value}%` }}
+                    animate={{ width: `${item.value ?? 0}%` }}
                     transition={{ duration: 0.7, delay: idx * 0.1 }}
                     className="h-full rounded-full bg-[#EF4444]"
                   />
                 </div>
               </div>
             </div>
-          ))}
+          )) : <p className="text-xs text-[#7B91B0]">No improvement areas identified yet.</p>}
         </div>
       </div>
     </>

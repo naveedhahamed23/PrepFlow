@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +22,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 
 import com.prepflow.user.UserRepository;
+import com.prepflow.activity.Activity;
+import com.prepflow.activity.ActivityRepository;
+import com.prepflow.activity.ActivityType;
 
 @RestController
 @RequestMapping("/api/dsa")
@@ -29,15 +33,18 @@ public class DsaProblemController {
     private final DsaProblemRepository problems;
     private final UserRepository users;
     private final DsaCatalogProblemRepository catalogProblems;
+    private final ActivityRepository activities;
 
    public DsaProblemController(
         DsaProblemRepository problems,
         UserRepository users,
-        DsaCatalogProblemRepository catalogProblems) {
+        DsaCatalogProblemRepository catalogProblems,
+        ActivityRepository activities) {
 
     this.problems = problems;
     this.users = users;
     this.catalogProblems = catalogProblems;
+    this.activities = activities;
 }
 
     @GetMapping("/problems")
@@ -76,6 +83,7 @@ public class DsaProblemController {
 
     @PostMapping("/problems")
     @ResponseStatus(HttpStatus.CREATED)
+    @Transactional
     public ProblemResponse create(
             @AuthenticationPrincipal String userId,
             @RequestBody ProblemRequest request) {
@@ -84,11 +92,13 @@ public class DsaProblemController {
         problem.setUser(users.getReferenceById(userId));
 
         apply(problem, request);
-
-        return ProblemResponse.from(problems.save(problem));
+        DsaProblem saved = problems.save(problem);
+        if ("Solved".equals(saved.getStatus())) recordSolvedActivity(userId, saved.getTitle());
+        return ProblemResponse.from(saved);
     }
 
     @PutMapping("/problems/{id}")
+    @Transactional
     public ProblemResponse update(
             @AuthenticationPrincipal String userId,
             @PathVariable String id,
@@ -96,9 +106,11 @@ public class DsaProblemController {
 
         DsaProblem problem = find(id, userId);
 
+        boolean newlySolved = !"Solved".equals(problem.getStatus()) && "Solved".equals(request.status());
         apply(problem, request);
-
-        return ProblemResponse.from(problems.save(problem));
+        DsaProblem saved = problems.save(problem);
+        if (newlySolved) recordSolvedActivity(userId, saved.getTitle());
+        return ProblemResponse.from(saved);
     }
 
     @DeleteMapping("/problems/{id}")
@@ -288,6 +300,7 @@ List<CompanyStat> companyDistribution = companyCounts.entrySet()
      */
    @PostMapping("/extension/solved")
 @ResponseStatus(HttpStatus.CREATED)
+@Transactional
 public ProblemResponse extensionSolved(
         @AuthenticationPrincipal String userId,
         @RequestBody ExtensionSolvedRequest request) {
@@ -299,6 +312,7 @@ public ProblemResponse extensionSolved(
                 newProblem.setUser(users.getReferenceById(userId));
                 return newProblem;
             });
+    boolean newlySolved = !"Solved".equals(problem.getStatus());
 
     // Match the LeetCode problem against the PrepFlow catalog.
     DsaCatalogProblem catalogProblem = null;
@@ -330,9 +344,11 @@ public ProblemResponse extensionSolved(
 
     problem.setStatus("Solved");
     problem.setTimeTaken(request.timeTaken());
-    problem.setSolvedOn(request.solvedOn());
+    problem.setSolvedOn(request.solvedOn() == null ? LocalDate.now() : request.solvedOn());
 
-    return ProblemResponse.from(problems.save(problem));
+    DsaProblem saved = problems.save(problem);
+    if (newlySolved) recordSolvedActivity(userId, saved.getTitle());
+    return ProblemResponse.from(saved);
 }
 @PostMapping("/sync-catalog")
 public List<ProblemResponse> syncWithCatalog(
@@ -373,6 +389,14 @@ public List<ProblemResponse> syncWithCatalog(
             .map(ProblemResponse::from)
             .toList();
 }
+
+    private void recordSolvedActivity(String userId, String title) {
+        Activity activity = new Activity();
+        activity.setUser(users.getReferenceById(userId));
+        activity.setType(ActivityType.DSA_SOLVED);
+        activity.setMetadata(title);
+        activities.save(activity);
+    }
 
 private String extractLeetCodeSlug(String url) {
 

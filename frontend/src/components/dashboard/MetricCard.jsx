@@ -21,9 +21,9 @@ export default function MetricCard({ icon: Icon, title, value, detail, delta, pr
       {/* Value + delta */}
       <div className="flex items-end justify-between mb-1">
         <p className="text-2xl font-bold text-[#F0F4FF] leading-none">{value}</p>
-        <div className="flex items-center gap-0.5 text-[11px] font-bold text-[#22C55E] mb-0.5">
-          <ArrowUp size={11} strokeWidth={3} /> {delta}
-        </div>
+        {delta ? <div className="flex items-center gap-0.5 text-[11px] font-bold text-[#22C55E] mb-0.5">
+          {typeof delta === "string" && delta.includes("%") ? <ArrowUp size={11} strokeWidth={3} /> : null} {delta}
+        </div> : null}
       </div>
 
       <p className="text-[11px] text-[#7B91B0] mb-4 leading-tight">{detail}</p>

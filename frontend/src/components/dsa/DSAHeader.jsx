@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Plus, LayoutGrid, Layers, Building2, RotateCcw, Bookmark } from "lucide-react";
+import { Plus, LayoutGrid, Layers, Building2, RotateCcw, Bookmark, LibraryBig } from "lucide-react";
 import Button from "../ui/Button";
 import { cn } from "../../utils/cn";
 
@@ -10,6 +10,7 @@ export default function DSAHeader({
 }) {
   const tabs = [
     { id: "overview", label: "Overview", icon: LayoutGrid },
+    { id: "catalog", label: "Catalog", icon: LibraryBig },
     { id: "topics", label: "Topics", icon: Layers },
     { id: "companies", label: "Companies", icon: Building2 },
     { id: "revision", label: "Revision", icon: RotateCcw },

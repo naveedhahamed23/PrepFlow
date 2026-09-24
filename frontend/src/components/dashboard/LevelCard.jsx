@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { Flame, Target, Trophy } from "lucide-react";
 
 export default function LevelCard({ level, xp, maxXp, streak, goalsActive, rank }) {
-  const progress = Math.min((xp / maxXp) * 100, 100);
+  const progress = maxXp > 0 ? Math.min((xp / maxXp) * 100, 100) : null;
 
   return (
     <motion.div
@@ -21,20 +21,20 @@ export default function LevelCard({ level, xp, maxXp, streak, goalsActive, rank 
           </div>
           <div>
             <p className="text-sm font-bold text-[#F0F4FF]">Level {level}</p>
-            <p className="text-[10px] text-[#4A6080]">{xp.toLocaleString()} / {maxXp.toLocaleString()} XP</p>
+            <p className="text-[10px] text-[#4A6080]">{Number(xp || 0).toLocaleString()} XP</p>
           </div>
         </div>
       </div>
 
       {/* XP Progress bar */}
-      <div className="mb-4">
+      {progress != null && <div className="mb-4">
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#1E2D45]">
           <div
             className="h-full rounded-full bg-gradient-to-r from-[#3B82F6] to-[#818cf8] transition-all duration-700"
             style={{ width: `${progress}%` }}
           />
         </div>
-      </div>
+      </div>}
 
       {/* Stats row */}
       <div className="grid grid-cols-3 gap-0 divide-x divide-[#1E2D45]">
@@ -52,7 +52,7 @@ export default function LevelCard({ level, xp, maxXp, streak, goalsActive, rank 
         </div>
         <div className="flex flex-col items-center gap-0.5 pl-2">
           <div className="flex items-center gap-1 text-sm font-bold text-[#F0F4FF]">
-            <Trophy size={13} className="text-[#F59E0B]" /> #{rank}
+            <Trophy size={13} className="text-[#F59E0B]" /> {typeof rank === "number" ? `#${rank}` : "—"}
           </div>
           <p className="text-[9px] uppercase tracking-wide text-[#4A6080]">Global Rank</p>
         </div>

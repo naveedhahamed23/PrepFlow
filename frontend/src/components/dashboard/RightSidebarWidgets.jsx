@@ -2,9 +2,11 @@ import { ArrowRight, Code2, Calculator, Mic, FileText, Flame, Lightbulb } from "
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
 import { cn } from "../../utils/cn";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 
 /* ─── Today's Progress ─────────────────────────────────────────── */
 export function TodaysProgress({ data }) {
+  const todayLabel = new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
   const pieData = data.tasks.map(t => ({ name: t.name, value: t.completed, color: t.color }));
   const totalValue = pieData.reduce((acc, curr) => acc + curr.value, 0);
   if (totalValue < data.total) {
@@ -15,7 +17,7 @@ export function TodaysProgress({ data }) {
     <div className="rounded-xl border border-[#1E2D45] bg-[#0D1424] p-4 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.5)] card-hover">
       <div className="flex justify-between items-start mb-3">
         <h3 className="text-sm font-semibold text-[#F0F4FF]">Today&apos;s Progress</h3>
-        <span className="text-[10px] text-[#4A6080]">Thu, Sep 11</span>
+        <span className="text-[10px] text-[#4A6080]">{todayLabel}</span>
       </div>
 
       <div className="flex items-center gap-4">
@@ -62,7 +64,10 @@ export function TodaysProgress({ data }) {
 }
 
 /* ─── Next Best Action ─────────────────────────────────────────── */
-export function NextBestAction() {
+export function NextBestAction({ weakAreas = [] }) {
+  const navigate = useNavigate();
+  const suggestion = weakAreas[0];
+  const route = suggestion === "Study Planner" ? "/app/planner" : suggestion === "Aptitude" ? "/app/aptitude" : "/app/dsa";
   return (
     <div className="rounded-xl border border-[#F59E0B]/20 bg-[#0D1424] p-4 shadow-[0_4px_24px_-4px_rgba(0,0,0,0.5)] card-hover"
       style={{ backgroundImage: "linear-gradient(135deg, rgba(13,20,36,1) 0%, rgba(16,22,45,1) 100%)" }}
@@ -77,12 +82,12 @@ export function NextBestAction() {
             <ArrowRight size={12} className="text-[#4A6080] shrink-0" />
           </div>
           <p className="text-[10px] text-[#7B91B0] leading-relaxed">
-            Your interview practice is lagging behind. Take a 30-minute mock interview today.
+            {suggestion ? `Your saved progress suggests spending time on ${suggestion}.` : "Your preparation suggestions will appear as more progress is recorded."}
           </p>
         </div>
       </div>
-      <button className="w-full bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-2 shadow-[0_0_12px_rgba(37,99,235,0.4)]">
-        Start Mock Interview <ArrowRight size={13} />
+      <button onClick={() => navigate(route)} className="w-full bg-[#2563EB] hover:bg-[#1D4ED8] transition-colors text-white text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-2 shadow-[0_0_12px_rgba(37,99,235,0.4)]">
+        {suggestion ? `Open ${suggestion}` : "View Preparation"} <ArrowRight size={13} />
       </button>
     </div>
   );

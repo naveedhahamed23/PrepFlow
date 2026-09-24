@@ -1,87 +1,106 @@
-import { mockResponse } from "./api";
+import api from "./api";
 
-const mockDashboardData = {
-  userName: "Naveedh",
-  studyStreak: 12,
-  level: 14,
-  xp: 1980,
-  maxXp: 2200,
-  globalRank: 4,
-  goalsActive: 5,
-  
-  metrics: {
-    dsa: { value: 142, label: "Problems solved", delta: "+12%", progress: 42, goal: "42% of your goal" },
-    aptitude: { value: 12, label: "Tests completed", delta: "+8%", progress: 58, goal: "58% accuracy" },
-    interviews: { value: 8, label: "Interviews taken", delta: "+33%", progress: 74, goal: "74% avg. score" },
-    resume: { value: 86, label: "ATS score", delta: "+6%", progress: 86, goal: "Almost there!" },
-    studyTime: { value: "64h", label: "Total study time", delta: "+18%", progress: 64, goal: "This month!" }
-  },
-
-  activityTimeline: [
-    { label: "Sep 4", dsa: 2, aptitude: 1, interview: 0, study: 4, others: 1 },
-    { label: "Sep 5", dsa: 3, aptitude: 3, interview: 1, study: 5, others: 0 },
-    { label: "Sep 6", dsa: 5, aptitude: 2, interview: 0, study: 6, others: 2 },
-    { label: "Sep 7", dsa: 4, aptitude: 4, interview: 2, study: 7, others: 1 },
-    { label: "Sep 8", dsa: 6, aptitude: 1, interview: 0, study: 4, others: 0 },
-    { label: "Sep 9", dsa: 2, aptitude: 5, interview: 1, study: 5, others: 2 },
-    { label: "Sep 10", dsa: 4, aptitude: 3, interview: 2, study: 8, others: 1 },
-    { label: "Sep 11", dsa: 3, aptitude: 2, interview: 0, study: 6, others: 2 }
-  ],
-
-  preparationProgress: {
-    overall: 68,
-    breakdown: [
-      { name: "DSA", value: 72, color: "#3B82F6" },
-      { name: "Aptitude", value: 58, color: "#F59E0B" },
-      { name: "Interviews", value: 41, color: "#EC4899" },
-      { name: "Resume", value: 86, color: "#10B981" },
-      { name: "Study Consistency", value: 74, color: "#06B6D4" }
-    ]
-  },
-
-  todaysProgress: {
-    completed: 3,
-    total: 5,
-    tasks: [
-      { name: "DSA", completed: 1, total: 2, color: "#3B82F6" },
-      { name: "Aptitude", completed: 1, total: 1, color: "#F59E0B" },
-      { name: "Interview", completed: 0, total: 1, color: "#EF4444" },
-      { name: "Study", completed: 1, total: 1, color: "#10B981" },
-      { name: "Other", completed: 0, total: 0, color: "#8B5CF6" }
-    ]
-  },
-
-  upcomingGoals: [
-    { id: 1, title: "Complete 200 DSA problems", progress: 142, total: 200, dueIn: "20 days", icon: "Code2", color: "primary" },
-    { id: 2, title: "Reach 80% aptitude accuracy", progress: 58, total: 80, dueIn: "15 days", icon: "Calculator", color: "danger" },
-    { id: 3, title: "Take 5 mock interviews", progress: 3, total: 5, dueIn: "10 days", icon: "Mic", color: "warning" },
-    { id: 4, title: "Finish resume (ATS 90+)", progress: 86, total: 90, dueIn: "7 days", icon: "FileText", color: "primary" },
-    { id: 5, title: "Maintain 30 day streak", progress: 12, total: 30, dueIn: "18 days", icon: "Flame", color: "danger" }
-  ],
-
-  recentActivity: [
-    { id: 1, title: "Solved Two Sum (Easy)", time: "2 hours ago", icon: "Code2", color: "success" },
-    { id: 2, title: "Completed Aptitude Test - Quantitative", time: "5 hours ago", icon: "Calculator", color: "warning" },
-    { id: 3, title: "Mock Interview (Technical)", time: "1 day ago", icon: "Mic", color: "danger" },
-    { id: 4, title: "Updated Resume", time: "2 days ago", icon: "FileText", color: "primary" },
-    { id: 5, title: "Studied Arrays (1 hour)", time: "2 days ago", icon: "BookOpen", color: "secondary" }
-  ],
-
-  strengths: [
-    { name: "Arrays", value: 85, color: "success" },
-    { name: "Verbal Ability", value: 78, color: "success" },
-    { name: "Consistency", value: 74, color: "success" }
-  ],
-  
-  areasToImprove: [
-    { name: "Dynamic Programming", value: 32, color: "danger" },
-    { name: "Probability", value: 40, color: "danger" },
-    { name: "System Design", value: 45, color: "danger" }
-  ]
+const colors = ["#3B82F6", "#F59E0B", "#EC4899", "#10B981", "#06B6D4"];
+const activityLabels = {
+  DSA_SOLVED: "Solved a DSA problem",
+  APTITUDE_COMPLETED: "Completed an aptitude practice",
+  STUDY_TASK_COMPLETED: "Completed a study task",
+  MOCK_INTERVIEW_COMPLETED: "Completed a mock interview",
+  RESUME_ANALYZED: "Analyzed a resume",
+  LEARNING_SESSION_COMPLETED: "Completed a learning session",
 };
 
+function relativeTime(value) {
+  if (!value) return "Recently";
+  const elapsed = Math.max(0, Date.now() - new Date(value).getTime());
+  const minutes = Math.floor(elapsed / 60000);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function toViewModel(data) {
+  const dsaProgress = data.dsaProblemsTracked
+    ? Math.round((data.dsaProblemsSolved / data.dsaProblemsTracked) * 100)
+    : null;
+  const studyProgress = data.overallProgress;
+  const breakdown = [
+    ...(dsaProgress == null ? [] : [{ name: "DSA", value: dsaProgress, color: colors[0] }]),
+    ...(data.aptitudeAverage == null ? [] : [{ name: "Aptitude", value: data.aptitudeAverage, color: colors[1] }]),
+    ...(studyProgress == null ? [] : [{ name: "Study tasks today", value: studyProgress, color: colors[4] }]),
+  ];
+
+  const todayTasks = data.todaysTasks || [];
+  const taskColors = [colors[0], colors[1], colors[2], colors[3], colors[4]];
+  const upcoming = (data.upcomingSchedule || []).map((task) => {
+    const dueDate = task.dueDate ? new Date(`${task.dueDate}T00:00:00`) : null;
+    const daysUntil = dueDate ? Math.ceil((dueDate - new Date(new Date().toDateString())) / 86400000) : null;
+    return {
+      id: task.id,
+      title: task.title,
+      progress: task.done ? 1 : 0,
+      total: 1,
+      dueIn: daysUntil == null ? "Scheduled" : daysUntil === 0 ? "Today" : `in ${daysUntil} days`,
+      icon: "Code2",
+      color: "primary",
+    };
+  });
+
+  const recentActivity = (data.recentActivity || []).map((item) => ({
+    id: item.id,
+    title: `${activityLabels[item.type] || "Preparation activity"}${item.metadata ? `: ${item.metadata}` : ""}`,
+    time: relativeTime(item.createdAt),
+    icon: item.type === "DSA_SOLVED" ? "Code2" : item.type === "APTITUDE_COMPLETED" ? "Calculator" : item.type === "MOCK_INTERVIEW_COMPLETED" ? "Mic" : "FileText",
+    color: item.type === "DSA_SOLVED" ? "success" : item.type === "APTITUDE_COMPLETED" ? "warning" : "primary",
+  }));
+
+  return {
+    userName: data.userName,
+    studyStreak: data.studyStreak,
+    level: data.level,
+    xp: data.xp,
+    maxXp: null,
+    globalRank: null,
+    goalsActive: upcoming.length,
+    metrics: {
+      dsa: { value: data.dsaProblemsSolved, label: "Problems solved", delta: data.dsaSolvedThisWeek ? `${data.dsaSolvedThisWeek} this week` : "", progress: dsaProgress ?? 0, goal: data.dsaProblemsTracked ? `${data.dsaProblemsSolved} of ${data.dsaProblemsTracked} tracked` : "No problems tracked" },
+      aptitude: { value: data.aptitudeAverage == null ? "—" : `${Math.round(data.aptitudeAverage)}%`, label: "Average accuracy", delta: "", progress: data.aptitudeAverage ?? 0, goal: data.aptitudeAverage == null ? "No attempts recorded" : "From recorded practice" },
+      interviews: { value: data.interviewCount, label: "Interviews completed", delta: "", progress: 0, goal: "Recorded interview sessions" },
+      resume: { value: "—", label: "Resume analysis", delta: "", progress: 0, goal: "No analysis recorded" },
+      studyTime: { value: `${Math.floor(data.studyMinutes / 60)}h ${data.studyMinutes % 60}m`, label: "Study time", delta: "", progress: 0, goal: "From completed planner tasks" },
+    },
+    activityTimeline: (data.weeklyActivity || []).map((point) => ({
+      label: point.label,
+      dsa: point.dsa,
+      aptitude: point.aptitude,
+      interview: point.interview,
+      study: point.study,
+      others: point.others,
+    })),
+    preparationProgress: {
+      overall: studyProgress,
+      breakdown,
+    },
+    todaysProgress: {
+      completed: todayTasks.filter((task) => task.done).length,
+      total: todayTasks.length,
+      tasks: todayTasks.map((task, index) => ({ name: task.title, completed: task.done ? 1 : 0, total: 1, color: taskColors[index % taskColors.length] })),
+    },
+    recentActivity,
+    strengths: [],
+    areasToImprove: (data.weakAreas || []).map((name) => ({ name, value: null, color: "danger" })),
+    upcomingGoals: upcoming,
+    weakAreas: data.weakAreas || [],
+  };
+}
+
 const dashboardService = {
-  getDashboard: async () => mockResponse(mockDashboardData),
+  getDashboard: async () => {
+    const { data } = await api.get("/dashboard");
+    return { data: toViewModel(data) };
+  },
 };
 
 export default dashboardService;
